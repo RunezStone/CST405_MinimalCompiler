@@ -36,7 +36,7 @@ ASTNode* root = NULL;          /* Root of the Abstract Syntax Tree */
 %token INT PRINT        /* Keywords have no semantic value */
 
 /* NON-TERMINAL TYPES - Define what type each grammar rule returns */
-%type <node> program stmt_list stmt decl assign expr print_stmt
+%type <node> program stmt_list stmt decl assign expr print_stmt id_list
 
 /* OPERATOR PRECEDENCE AND ASSOCIATIVITY */
 %left '+'  /* Addition is left-associative: a+b+c = (a+b)+c */
@@ -72,25 +72,44 @@ stmt:
     | print_stmt /* Print statement */
     ;
 
-/* DECLARATION RULE - "int x;" */
-decl:
-    INT ID ';' {
-        /* Create declaration node and free the identifier string */
-        $$ = createDecl("int", $2);  /* "int" = type, $2 = ID string */
-        free($2);             /* Free the string copy from scanner */
+/* ID LIST RULE - Comma-separated list of identifiers: "x" or "x, y, z" */
+id_list:
+    ID {
+        /* Base case: single identifier */
+        $$ = createIdList($1);
+        free($1);
     }
-    | INT ID error {
+    | id_list ',' ID {
+        /* Recursive case: extend list with another identifier */
+        $$ = appendIdList($1, $3);
+        free($3);
+    }
+    | id_list ',' error {
+        fprintf(stderr, "\n❌ Syntax Error at line %d:\n", yylineno);
+        fprintf(stderr, "   Expected identifier after comma in declaration\n");
+        fprintf(stderr, "   💡 Suggestion: Add a variable name after ','\n\n");
+        $$ = $1;
+        yyerrok;
+    }
+    ;
+
+/* DECLARATION RULE - "int x;" or "int x, y, z;" */
+decl:
+    INT id_list ';' {
+        /* Expand id_list into individual declaration nodes */
+        $$ = createMultiDecl($2);
+    }
+    | INT id_list error {
         fprintf(stderr, "\n❌ Syntax Error at line %d:\n", yylineno);
         fprintf(stderr, "   Missing semicolon after variable declaration\n");
-        fprintf(stderr, "   💡 Suggestion: Add ';' after 'int %s'\n\n", $2);
-        free($2);
+        fprintf(stderr, "   💡 Suggestion: Add ';' after the identifier list\n\n");
         $$ = NULL;
         yyerrok;
     }
     | INT error {
         fprintf(stderr, "\n❌ Syntax Error at line %d:\n", yylineno);
         fprintf(stderr, "   Invalid or missing identifier in declaration\n");
-        fprintf(stderr, "   💡 Suggestion: Expected 'int <identifier>;'\n\n");
+        fprintf(stderr, "   💡 Suggestion: Expected 'int <identifier>;' or 'int x, y, z;'\n\n");
         $$ = NULL;
         yyerrok;
     }

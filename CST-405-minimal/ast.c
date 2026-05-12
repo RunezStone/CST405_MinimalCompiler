@@ -68,6 +68,45 @@ ASTNode* createStmtList(ASTNode* stmt1, ASTNode* stmt2) {
     return node;
 }
 
+/* Create the first node in a comma-separated identifier list */
+ASTNode* createIdList(char* name) {
+    ASTNode* node = malloc(sizeof(ASTNode));
+    node->type = NODE_ID_LIST;
+    node->data.idlist.name = strdup(name);  /* Copy the identifier name */
+    node->data.idlist.next = NULL;          /* No next element yet */
+    return node;
+}
+
+/* Append a new identifier to the end of an id_list chain */
+ASTNode* appendIdList(ASTNode* list, char* name) {
+    /* Walk to the end of the chain */
+    ASTNode* curr = list;
+    while (curr->data.idlist.next != NULL) {
+        curr = curr->data.idlist.next;
+    }
+    /* Attach a new id_list node at the end */
+    curr->data.idlist.next = createIdList(name);
+    return list;  /* Return original head */
+}
+
+/* Expand an id_list into a chain of individual DECL nodes linked as a STMT_LIST
+ * e.g., id_list(x -> y -> z) becomes STMT_LIST(DECL(x), STMT_LIST(DECL(y), DECL(z))) */
+ASTNode* createMultiDecl(ASTNode* id_list) {
+    ASTNode* result = NULL;
+    ASTNode* curr = id_list;
+
+    while (curr != NULL) {
+        ASTNode* decl = createDecl("int", curr->data.idlist.name);
+        if (result == NULL) {
+            result = decl;  /* First declaration becomes the root */
+        } else {
+            result = createStmtList(result, decl);  /* Chain subsequent ones */
+        }
+        curr = curr->data.idlist.next;
+    }
+    return result;
+}
+
 /* Display the AST structure (for debugging and education) */
 void printAST(ASTNode* node, int level) {
     if (!node) return;
@@ -103,6 +142,11 @@ void printAST(ASTNode* node, int level) {
             /* Print statements in sequence at same level */
             printAST(node->data.stmtlist.stmt, level);
             printAST(node->data.stmtlist.next, level);
+            break;
+        case NODE_ID_LIST:
+            /* Print the identifier list (only seen before createMultiDecl expands it) */
+            printf("ID_LIST: %s\n", node->data.idlist.name);
+            printAST(node->data.idlist.next, level);
             break;
     }
 }

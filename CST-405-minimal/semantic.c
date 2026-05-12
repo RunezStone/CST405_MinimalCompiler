@@ -17,9 +17,10 @@ void initSemantic() {
     printf("SEMANTIC ANALYZER: Initialized\n\n");
 }
 
-/* Report a semantic error */
+/* Report a semantic error with detailed formatting */
 void reportSemanticError(const char* msg) {
-    printf("✗ SEMANTIC ERROR: %s\n", msg);
+    fprintf(stderr, "\n❌ Semantic Error:\n");
+    fprintf(stderr, "   %s\n", msg);
     semanticErrors++;
 }
 
@@ -36,7 +37,10 @@ void analyzeExpr(ASTNode* node) {
             /* Check if variable has been declared */
             if (!isVarDeclared(node->data.name)) {
                 char errorMsg[256];
-                sprintf(errorMsg, "Variable '%s' used before declaration", node->data.name);
+                sprintf(errorMsg,
+                    "Variable '%s' used but never declared\n"
+                    "   💡 Suggestion: Add 'int %s;' before using it",
+                    node->data.name, node->data.name);
                 reportSemanticError(errorMsg);
             } else {
                 printf("  ✓ Variable '%s' is declared\n", node->data.name);
@@ -64,7 +68,11 @@ void analyzeStmt(ASTNode* node) {
             /* Check if variable is already declared */
             if (isVarDeclared(node->data.decl.name)) {
                 char errorMsg[256];
-                sprintf(errorMsg, "Variable '%s' already declared", node->data.decl.name);
+                sprintf(errorMsg,
+                    "Variable '%s' is already declared\n"
+                    "   💡 Suggestion: Remove the duplicate 'int %s;' declaration\n"
+                    "      or rename one of them if you need two separate variables",
+                    node->data.decl.name, node->data.decl.name);
                 reportSemanticError(errorMsg);
             } else {
                 /* Add variable to symbol table with its type */
@@ -81,7 +89,10 @@ void analyzeStmt(ASTNode* node) {
             /* Check if variable being assigned to has been declared */
             if (!isVarDeclared(node->data.assign.var)) {
                 char errorMsg[256];
-                sprintf(errorMsg, "Cannot assign to undeclared variable '%s'", node->data.assign.var);
+                sprintf(errorMsg,
+                    "Cannot assign to undeclared variable '%s'\n"
+                    "   💡 Suggestion: Add 'int %s;' before this assignment",
+                    node->data.assign.var, node->data.assign.var);
                 reportSemanticError(errorMsg);
             } else {
                 printf("  ✓ Assignment to declared variable '%s'\n", node->data.assign.var);
@@ -126,7 +137,8 @@ int analyzeProgram(ASTNode* root) {
         printf("✓ Semantic analysis passed - no errors found!\n");
         return 1;  /* Success */
     } else {
-        printf("✗ Semantic analysis failed with %d error(s)\n", semanticErrors);
+        fprintf(stderr, "\n✗ Semantic analysis failed with %d error(s)\n", semanticErrors);
+        fprintf(stderr, "  💡 Fix all semantic errors above before proceeding\n\n");
         return 0;  /* Failure */
     }
 }

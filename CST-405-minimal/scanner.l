@@ -93,6 +93,11 @@ extern int displayTokens;
     return ')';
 }
 
+","             {
+    if (displayTokens) printf("  TOKEN: ','\n");
+    return ',';
+}
+
 [ \t\n]         { }
 
 .               {

@@ -15,7 +15,8 @@ typedef enum {
     NODE_DECL,      /* Variable declaration (e.g., int x) */
     NODE_ASSIGN,    /* Assignment statement (e.g., x = 10) */
     NODE_PRINT,     /* Print statement (e.g., print(x)) */
-    NODE_STMT_LIST  /* List of statements (program structure) */
+    NODE_STMT_LIST, /* List of statements (program structure) */
+    NODE_ID_LIST    /* Comma-separated identifier list (e.g., x, y, z in multi-decl) */
 } NodeType;
 
 /* AST NODE STRUCTURE
@@ -60,6 +61,12 @@ typedef struct ASTNode {
             struct ASTNode* stmt;       /* Current statement */
             struct ASTNode* next;       /* Rest of the list */
         } stmtlist;
+
+        /* ID list structure (NODE_ID_LIST) - for multi-variable declarations */
+        struct {
+            char* name;                 /* This identifier's name */
+            struct ASTNode* next;       /* Next identifier in the list */
+        } idlist;
     } data;
 } ASTNode;
 
@@ -73,6 +80,11 @@ ASTNode* createDecl(char* type, char* name);                             /* Crea
 ASTNode* createAssign(char* var, ASTNode* value);               /* Create assignment node */
 ASTNode* createPrint(ASTNode* expr);                            /* Create print node */
 ASTNode* createStmtList(ASTNode* stmt1, ASTNode* stmt2);        /* Create statement list */
+
+/* MULTI-DECLARATION HELPER FUNCTIONS */
+ASTNode* createIdList(char* name);                              /* Create first id in list */
+ASTNode* appendIdList(ASTNode* list, char* name);              /* Append id to list */
+ASTNode* createMultiDecl(ASTNode* id_list);                    /* Expand id_list to DECL nodes */
 
 /* AST DISPLAY FUNCTION */
 void printAST(ASTNode* node, int level);                        /* Pretty-print the AST */
