@@ -103,6 +103,7 @@ int main(int argc, char* argv[]) {
         printf("└──────────────────────────────────────────────────────────┘\n");
         optimizeTAC();
         printOptimizedTAC();
+        allocateRegistersForTAC(); // Added
 
         // Save optimized TAC to file
         char optTacFile[256];

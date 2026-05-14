@@ -79,6 +79,7 @@ id_list:
         $$ = createIdList($1);
         free($1);
     }
+    // MODIFIED: Allows for multiple variables to be listed at once by making this statement recursive
     | id_list ',' ID {
         /* Recursive case: extend list with another identifier */
         $$ = appendIdList($1, $3);

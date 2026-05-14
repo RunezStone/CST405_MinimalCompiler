@@ -48,4 +48,7 @@ void printOptimizedTAC();                                          /* Display op
 void saveTACToFile(const char* filename);                         /* Save unoptimized TAC to file */
 void saveOptimizedTACToFile(const char* filename);                /* Save optimized TAC to file */
 
+
+void allocateRegistersForTAC();
+
 #endif

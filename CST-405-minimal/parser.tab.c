@@ -525,9 +525,9 @@ static const yytype_int8 yytranslate[] =
 /* YYRLINE[YYN] -- Source line where rule number YYN was defined.  */
 static const yytype_uint8 yyrline[] =
 {
-       0,    50,    50,    58,    62,    70,    71,    72,    77,    82,
-      87,    98,   102,   109,   120,   125,   133,   141,   153,   157,
-     162,   170,   174,   181,   188,   195
+       0,    50,    50,    58,    62,    70,    71,    72,    77,    83,
+      88,    99,   103,   110,   121,   126,   134,   142,   154,   158,
+     163,   171,   175,   182,   189,   196
 };
 #endif
 
@@ -1141,7 +1141,7 @@ yyreduce:
     break;
 
   case 9: /* id_list: id_list ',' ID  */
-#line 82 "parser.y"
+#line 83 "parser.y"
                      {
         /* Recursive case: extend list with another identifier */
         (yyval.node) = appendIdList((yyvsp[-2].node), (yyvsp[0].str));
@@ -1151,7 +1151,7 @@ yyreduce:
     break;
 
   case 10: /* id_list: id_list ',' error  */
-#line 87 "parser.y"
+#line 88 "parser.y"
                         {
         fprintf(stderr, "\n❌ Syntax Error at line %d:\n", yylineno);
         fprintf(stderr, "   Expected identifier after comma in declaration\n");
@@ -1163,7 +1163,7 @@ yyreduce:
     break;
 
   case 11: /* decl: INT id_list ';'  */
-#line 98 "parser.y"
+#line 99 "parser.y"
                     {
         /* Expand id_list into individual declaration nodes */
         (yyval.node) = createMultiDecl((yyvsp[-1].node));
@@ -1172,7 +1172,7 @@ yyreduce:
     break;
 
   case 12: /* decl: INT id_list error  */
-#line 102 "parser.y"
+#line 103 "parser.y"
                         {
         fprintf(stderr, "\n❌ Syntax Error at line %d:\n", yylineno);
         fprintf(stderr, "   Missing semicolon after variable declaration\n");
@@ -1184,7 +1184,7 @@ yyreduce:
     break;
 
   case 13: /* decl: INT error  */
-#line 109 "parser.y"
+#line 110 "parser.y"
                 {
         fprintf(stderr, "\n❌ Syntax Error at line %d:\n", yylineno);
         fprintf(stderr, "   Invalid or missing identifier in declaration\n");
@@ -1196,7 +1196,7 @@ yyreduce:
     break;
 
   case 14: /* assign: ID '=' expr ';'  */
-#line 120 "parser.y"
+#line 121 "parser.y"
                     {
         /* Create assignment node with variable name and expression */
         (yyval.node) = createAssign((yyvsp[-3].str), (yyvsp[-1].node));  /* $1 = ID, $3 = expr */
@@ -1206,7 +1206,7 @@ yyreduce:
     break;
 
   case 15: /* assign: ID '=' expr error  */
-#line 125 "parser.y"
+#line 126 "parser.y"
                         {
         fprintf(stderr, "\n❌ Syntax Error at line %d:\n", yylineno);
         fprintf(stderr, "   Missing semicolon after assignment\n");
@@ -1219,7 +1219,7 @@ yyreduce:
     break;
 
   case 16: /* assign: ID '=' error  */
-#line 133 "parser.y"
+#line 134 "parser.y"
                    {
         fprintf(stderr, "\n❌ Syntax Error at line %d:\n", yylineno);
         fprintf(stderr, "   Invalid expression in assignment\n");
@@ -1232,7 +1232,7 @@ yyreduce:
     break;
 
   case 17: /* assign: ID error  */
-#line 141 "parser.y"
+#line 142 "parser.y"
                {
         fprintf(stderr, "\n❌ Syntax Error at line %d:\n", yylineno);
         fprintf(stderr, "   Missing '=' in assignment statement\n");
@@ -1245,7 +1245,7 @@ yyreduce:
     break;
 
   case 18: /* expr: NUM  */
-#line 153 "parser.y"
+#line 154 "parser.y"
         { 
         /* Literal number */
         (yyval.node) = createNum((yyvsp[0].num));  /* Create leaf node with number value */
@@ -1254,7 +1254,7 @@ yyreduce:
     break;
 
   case 19: /* expr: ID  */
-#line 157 "parser.y"
+#line 158 "parser.y"
          { 
         /* Variable reference */
         (yyval.node) = createVar((yyvsp[0].str));  /* Create leaf node with variable name */
@@ -1264,7 +1264,7 @@ yyreduce:
     break;
 
   case 20: /* expr: expr '+' expr  */
-#line 162 "parser.y"
+#line 163 "parser.y"
                     { 
         /* Addition operation - builds binary tree */
         (yyval.node) = createBinOp('+', (yyvsp[-2].node), (yyvsp[0].node));  /* Left child, op, right child */
@@ -1273,7 +1273,7 @@ yyreduce:
     break;
 
   case 21: /* print_stmt: PRINT '(' expr ')' ';'  */
-#line 170 "parser.y"
+#line 171 "parser.y"
                            {
         /* Create print node with expression to print */
         (yyval.node) = createPrint((yyvsp[-2].node));  /* $3 is the expression inside parens */
@@ -1282,7 +1282,7 @@ yyreduce:
     break;
 
   case 22: /* print_stmt: PRINT '(' expr ')' error  */
-#line 174 "parser.y"
+#line 175 "parser.y"
                                {
         fprintf(stderr, "\n❌ Syntax Error at line %d:\n", yylineno);
         fprintf(stderr, "   Missing semicolon after print statement\n");
@@ -1294,7 +1294,7 @@ yyreduce:
     break;
 
   case 23: /* print_stmt: PRINT '(' expr error  */
-#line 181 "parser.y"
+#line 182 "parser.y"
                            {
         fprintf(stderr, "\n❌ Syntax Error at line %d:\n", yylineno);
         fprintf(stderr, "   Missing closing parenthesis in print statement\n");
@@ -1306,7 +1306,7 @@ yyreduce:
     break;
 
   case 24: /* print_stmt: PRINT '(' error  */
-#line 188 "parser.y"
+#line 189 "parser.y"
                       {
         fprintf(stderr, "\n❌ Syntax Error at line %d:\n", yylineno);
         fprintf(stderr, "   Invalid expression in print statement\n");
@@ -1318,7 +1318,7 @@ yyreduce:
     break;
 
   case 25: /* print_stmt: PRINT error  */
-#line 195 "parser.y"
+#line 196 "parser.y"
                   {
         fprintf(stderr, "\n❌ Syntax Error at line %d:\n", yylineno);
         fprintf(stderr, "   Missing opening parenthesis in print statement\n");
@@ -1523,7 +1523,7 @@ yyreturnlab:
   return yyresult;
 }
 
-#line 204 "parser.y"
+#line 205 "parser.y"
 
 
 /* ERROR HANDLING - Called by Bison when syntax error detected */

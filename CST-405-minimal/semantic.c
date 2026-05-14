@@ -8,6 +8,10 @@
 #include "semantic.h"
 #include "symtab.h"
 
+/* Line and column info from the scanner */
+extern int yylineno;
+extern int yycolumn;
+
 /* Track number of semantic errors found */
 int semanticErrors = 0;
 
@@ -17,9 +21,9 @@ void initSemantic() {
     printf("SEMANTIC ANALYZER: Initialized\n\n");
 }
 
-/* Report a semantic error with detailed formatting */
+/* Report a semantic error with line, column, and detailed message */
 void reportSemanticError(const char* msg) {
-    fprintf(stderr, "\n❌ Semantic Error:\n");
+    fprintf(stderr, "\n❌ Semantic Error at line %d, column %d:\n", yylineno, yycolumn);
     fprintf(stderr, "   %s\n", msg);
     semanticErrors++;
 }

@@ -9,6 +9,13 @@
 
 /* Global flag to enable token display */
 extern int displayTokens;
+
+/* Column tracking - incremented per character, reset on newline */
+int yycolumn = 1;
+
+/* Update column position after every token is matched */
+#define YY_USER_ACTION \
+    yycolumn += yyleng;
 %}
 
 /* Flex options to suppress warnings for unused functions */
@@ -98,17 +105,18 @@ extern int displayTokens;
     return ',';
 }
 
-[ \t\n]         { }
+[ \t]           { }
+\n              { yycolumn = 1; }
 
 .               {
-    fprintf(stderr, "\n❌ Lexical Error at line %d:\n", yylineno);
+    fprintf(stderr, "\n❌ Lexical Error at line %d, column %d:\n", yylineno, yycolumn - 1);
     fprintf(stderr, "   Unknown character: '%c' (ASCII %d)\n", *yytext, *yytext);
     fprintf(stderr, "   💡 Suggestion: Remove this character or check for typos\n\n");
 }
 
 <<EOF>>         {
     if (YY_START == COMMENT) {
-        fprintf(stderr, "\n❌ Lexical Error at line %d:\n", yylineno);
+        fprintf(stderr, "\n❌ Lexical Error at line %d, column %d:\n", yylineno, yycolumn);
         fprintf(stderr, "   Unterminated multi-line comment\n");
         fprintf(stderr, "   💡 Suggestion: Add '*/' to close the comment\n\n");
         return 0;

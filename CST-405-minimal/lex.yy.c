@@ -370,8 +370,8 @@ static void yynoreturn yy_fatal_error ( const char* msg  );
 	(yy_hold_char) = *yy_cp; \
 	*yy_cp = '\0'; \
 	(yy_c_buf_p) = yy_cp;
-#define YY_NUM_RULES 18
-#define YY_END_OF_BUFFER 19
+#define YY_NUM_RULES 19
+#define YY_END_OF_BUFFER 20
 /* This struct is not used in this scanner,
    but its presence is necessary. */
 struct yy_trans_info
@@ -381,8 +381,8 @@ struct yy_trans_info
 	};
 static const flex_int16_t yy_accept[36] =
     {   0,
-        0,    0,    0,    0,   19,   17,   16,   16,   13,   14,
-       10,   15,   17,    9,   12,   11,    8,    8,    8,    5,
+        0,    0,    0,    0,   20,   18,   16,   17,   13,   14,
+       10,   15,   18,    9,   12,   11,    8,    8,    8,    5,
         4,    5,    2,    1,    9,    8,    8,    8,    3,    1,
         6,    8,    8,    7,    0
     } ;
@@ -462,9 +462,10 @@ static const flex_int16_t yy_chk[60] =
     } ;
 
 /* Table of booleans, true if rule could match eol. */
-static const flex_int32_t yy_rule_can_match_eol[19] =
+static const flex_int32_t yy_rule_can_match_eol[20] =
     {   0,
-0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0,     };
+0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 
+        };
 
 static yy_state_type yy_last_accepting_state;
 static char *yy_last_accepting_cpos;
@@ -492,12 +493,19 @@ char *yytext;
 
 /* Global flag to enable token display */
 extern int displayTokens;
-#line 496 "lex.yy.c"
+
+/* Column tracking - incremented per character, reset on newline */
+int yycolumn = 1;
+
+/* Update column position after every token is matched */
+#define YY_USER_ACTION \
+    yycolumn += yyleng;
+#line 504 "lex.yy.c"
 /* Flex options to suppress warnings for unused functions */
 #define YY_NO_INPUT 1
 /* Exclusive start condition for multi-line comments */
 
-#line 501 "lex.yy.c"
+#line 509 "lex.yy.c"
 
 #define INITIAL 0
 #define COMMENT 1
@@ -713,10 +721,10 @@ YY_DECL
 		}
 
 	{
-#line 22 "scanner.l"
+#line 29 "scanner.l"
 
 
-#line 720 "lex.yy.c"
+#line 728 "lex.yy.c"
 
 	while ( /*CONSTCOND*/1 )		/* loops until end-of-file is reached */
 		{
@@ -785,7 +793,7 @@ do_action:	/* This label is used only to access EOF actions. */
 
 case 1:
 YY_RULE_SETUP
-#line 24 "scanner.l"
+#line 31 "scanner.l"
 {
     /* Single-line comment - ignore everything from // to end of line */
     if (displayTokens) printf("  (ignoring single-line comment)\n");
@@ -793,7 +801,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 2:
 YY_RULE_SETUP
-#line 29 "scanner.l"
+#line 36 "scanner.l"
 {
     /* Start of multi-line comment - switch to COMMENT state */
     if (displayTokens) printf("  (start multi-line comment)\n");
@@ -802,7 +810,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 3:
 YY_RULE_SETUP
-#line 35 "scanner.l"
+#line 42 "scanner.l"
 {
     /* End of multi-line comment - return to normal scanning */
     if (displayTokens) printf("  (end multi-line comment)\n");
@@ -812,21 +820,21 @@ YY_RULE_SETUP
 case 4:
 /* rule 4 can match eol */
 YY_RULE_SETUP
-#line 41 "scanner.l"
+#line 48 "scanner.l"
 {
     /* Newline inside comment - ignore but continue in COMMENT state */
 }
 	YY_BREAK
 case 5:
 YY_RULE_SETUP
-#line 45 "scanner.l"
+#line 52 "scanner.l"
 {
     /* Any other character inside comment - ignore */
 }
 	YY_BREAK
 case 6:
 YY_RULE_SETUP
-#line 49 "scanner.l"
+#line 56 "scanner.l"
 {
     if (displayTokens) printf("  TOKEN: INT keyword\n");
     return INT;
@@ -834,7 +842,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 7:
 YY_RULE_SETUP
-#line 54 "scanner.l"
+#line 61 "scanner.l"
 {
     if (displayTokens) printf("  TOKEN: PRINT keyword\n");
     return PRINT;
@@ -842,7 +850,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 8:
 YY_RULE_SETUP
-#line 59 "scanner.l"
+#line 66 "scanner.l"
 {
     if (displayTokens) printf("  TOKEN: ID '%s'\n", yytext);
     yylval.str = strdup(yytext);
@@ -851,7 +859,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 9:
 YY_RULE_SETUP
-#line 65 "scanner.l"
+#line 72 "scanner.l"
 {
     if (displayTokens) printf("  TOKEN: NUM %s\n", yytext);
     yylval.num = atoi(yytext);
@@ -860,7 +868,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 10:
 YY_RULE_SETUP
-#line 71 "scanner.l"
+#line 78 "scanner.l"
 {
     if (displayTokens) printf("  TOKEN: '+'\n");
     return '+';
@@ -868,7 +876,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 11:
 YY_RULE_SETUP
-#line 76 "scanner.l"
+#line 83 "scanner.l"
 {
     if (displayTokens) printf("  TOKEN: '='\n");
     return '=';
@@ -876,7 +884,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 12:
 YY_RULE_SETUP
-#line 81 "scanner.l"
+#line 88 "scanner.l"
 {
     if (displayTokens) printf("  TOKEN: ';'\n");
     return ';';
@@ -884,7 +892,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 13:
 YY_RULE_SETUP
-#line 86 "scanner.l"
+#line 93 "scanner.l"
 {
     if (displayTokens) printf("  TOKEN: '('\n");
     return '(';
@@ -892,7 +900,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 14:
 YY_RULE_SETUP
-#line 91 "scanner.l"
+#line 98 "scanner.l"
 {
     if (displayTokens) printf("  TOKEN: ')'\n");
     return ')';
@@ -900,33 +908,38 @@ YY_RULE_SETUP
 	YY_BREAK
 case 15:
 YY_RULE_SETUP
-#line 96 "scanner.l"
+#line 103 "scanner.l"
 {
     if (displayTokens) printf("  TOKEN: ','\n");
     return ',';
 }
 	YY_BREAK
 case 16:
-/* rule 16 can match eol */
 YY_RULE_SETUP
-#line 101 "scanner.l"
+#line 108 "scanner.l"
 { }
 	YY_BREAK
 case 17:
+/* rule 17 can match eol */
 YY_RULE_SETUP
-#line 103 "scanner.l"
+#line 109 "scanner.l"
+{ yycolumn = 1; }
+	YY_BREAK
+case 18:
+YY_RULE_SETUP
+#line 111 "scanner.l"
 {
-    fprintf(stderr, "\n❌ Lexical Error at line %d:\n", yylineno);
+    fprintf(stderr, "\n❌ Lexical Error at line %d, column %d:\n", yylineno, yycolumn - 1);
     fprintf(stderr, "   Unknown character: '%c' (ASCII %d)\n", *yytext, *yytext);
     fprintf(stderr, "   💡 Suggestion: Remove this character or check for typos\n\n");
 }
 	YY_BREAK
 case YY_STATE_EOF(INITIAL):
 case YY_STATE_EOF(COMMENT):
-#line 109 "scanner.l"
+#line 117 "scanner.l"
 {
     if (YY_START == COMMENT) {
-        fprintf(stderr, "\n❌ Lexical Error at line %d:\n", yylineno);
+        fprintf(stderr, "\n❌ Lexical Error at line %d, column %d:\n", yylineno, yycolumn);
         fprintf(stderr, "   Unterminated multi-line comment\n");
         fprintf(stderr, "   💡 Suggestion: Add '*/' to close the comment\n\n");
         return 0;
@@ -934,12 +947,12 @@ case YY_STATE_EOF(COMMENT):
     yyterminate();
 }
 	YY_BREAK
-case 18:
+case 19:
 YY_RULE_SETUP
-#line 119 "scanner.l"
+#line 127 "scanner.l"
 ECHO;
 	YY_BREAK
-#line 943 "lex.yy.c"
+#line 956 "lex.yy.c"
 
 	case YY_END_OF_BUFFER:
 		{
@@ -1913,7 +1926,7 @@ void yyfree (void * ptr )
 
 #define YYTABLES_NAME "yytables"
 
-#line 119 "scanner.l"
+#line 127 "scanner.l"
 
 
 /* Required by Flex - signals end of input */

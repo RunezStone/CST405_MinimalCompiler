@@ -36,7 +36,7 @@ static SpillEntry spillTable[MAX_SPILLS];
 static int       spillCount  = 0;
 static int       clock_tick  = 0;   /* Incremented on every allocation */
 
-/* Initialise the register file – call once before allocating */
+/* NEW FUNCTION: Initialise the register EIGHT file ($t0 - $t7)– call once before allocating */
 void initRegAlloc() {
     for (int i = 0; i < NUM_REGS; i++) {
         regFile[i].name[0] = '\0';
