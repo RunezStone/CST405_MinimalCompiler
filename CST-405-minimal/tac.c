@@ -32,12 +32,12 @@ typedef struct {
     int  stackSlot;   /* Stack slot index (slot * 4 = byte offset from $sp) */
 } SpillEntry;
 
-
+/* **TEST TO SEE IF IT IS NOT NEEDED**
 typedef struct {
     char* var;
     char* value;
 } VarValue;
-
+*/
 static RegEntry  regFile[NUM_REGS];
 static SpillEntry spillTable[MAX_SPILLS];
 static int       spillCount  = 0;
@@ -417,7 +417,8 @@ void optimizeTAC() {
         curr = curr->next;
     }
 
-    typedef struct { char* var; char* value; } VarValue;
+    //**TEST TO SEE IF IT IS NOT NEEDED**
+    //typedef struct { char* var; char* value; } VarValue;
     VarValue values[100];
     int valueCount = 0;
 
@@ -431,7 +432,10 @@ void optimizeTAC() {
     } while (changed);
 
     printf("  Converged after %d pass(es).\n", pass - 1);
+    
+    eliminateDeadCode();   
 }
+
 
 // ADDED: A multi pass
 int optimizeTACPass(VarValue* values, int* valueCount) {
@@ -517,6 +521,58 @@ int optimizeTACPass(VarValue* values, int* valueCount) {
     }
 
     return changed;
+}
+
+//added: dead code elimination (DCE) pass that runs after constant folding and copy propagation
+void eliminateDeadCode() {
+    // --- Pass 1: collect every variable that is READ ---
+    char used[100][32];
+    int usedCount = 0;
+
+    TACInstr* curr = optimizedList.head;
+    while (curr) {
+        // arg1 and arg2 are "read" operands
+        if (curr->arg1 && !isdigit((unsigned char)curr->arg1[0]))
+            strncpy(used[usedCount++], curr->arg1, 31);
+        if (curr->arg2 && !isdigit((unsigned char)curr->arg2[0]))
+            strncpy(used[usedCount++], curr->arg2, 31);
+        // PRINT reads its argument too
+        curr = curr->next;
+    }
+
+    // --- Pass 2: drop instructions whose result is never read ---
+    TACInstr* prev = NULL;
+    curr = optimizedList.head;
+    while (curr) {
+        int isUsed = 0;
+
+        // DECL / PRINT are always "live" (side-effectful)
+        if (curr->op == TAC_DECL || curr->op == TAC_PRINT) {
+            isUsed = 1;
+        } else if (curr->result) {
+            for (int i = 0; i < usedCount; i++) {
+                if (strcmp(used[i], curr->result) == 0) {
+                    isUsed = 1;
+                    break;
+                }
+            }
+        }
+
+        if (!isUsed) {
+            printf("  ✂ DCE: removing dead instruction '%s = ...'\n",
+                   curr->result);
+            TACInstr* dead = curr;
+            if (prev) prev->next = curr->next;
+            else       optimizedList.head = curr->next;
+            if (optimizedList.tail == dead)
+                optimizedList.tail = prev;
+            curr = curr->next;
+            // free dead->arg1, arg2, result, dead itself
+        } else {
+            prev = curr;
+            curr = curr->next;
+        }
+    }
 }
 
 void printOptimizedTAC() {

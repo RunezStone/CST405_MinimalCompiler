@@ -44,6 +44,9 @@ char* generateTACExpr(ASTNode* node);                             /* Generate TA
 /* TAC OPTIMIZATION AND OUTPUT */
 void printTAC();                                                   /* Display unoptimized TAC */
 void optimizeTAC();                                                /* Apply optimizations */
+typedef struct { char* var; char* value; } VarValue;                 /* Used by optimization passes */
+int optimizeTACPass(VarValue* values, int* valueCount);              /* Single optimization pass; returns 1 if changed */
+void eliminateDeadCode();                                             /* Remove instructions whose results are never read */
 void printOptimizedTAC();                                          /* Display optimized TAC */
 void saveTACToFile(const char* filename);                         /* Save unoptimized TAC to file */
 void saveOptimizedTACToFile(const char* filename);                /* Save optimized TAC to file */
