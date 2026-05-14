@@ -4,6 +4,7 @@
 #include <ctype.h>
 #include "tac.h"
 
+// Two global lists; the unoptimized TAC_List and the updated optimized list
 TACList tacList;
 TACList optimizedList;
 
@@ -30,6 +31,12 @@ typedef struct {
     char name[32];    /* Temporary name that was spilled   */
     int  stackSlot;   /* Stack slot index (slot * 4 = byte offset from $sp) */
 } SpillEntry;
+
+
+typedef struct {
+    char* var;
+    char* value;
+} VarValue;
 
 static RegEntry  regFile[NUM_REGS];
 static SpillEntry spillTable[MAX_SPILLS];
@@ -401,104 +408,115 @@ void printTAC() {
 
 // Simple optimization: constant folding and copy propagation
 void optimizeTAC() {
+    // Seed the optimized list from the original TAC
+    // (first pass reads from tacList, subsequent passes re-process optimizedList)
     TACInstr* curr = tacList.head;
-    
-    // Copy propagation table
-    typedef struct {
-        char* var;
-        char* value;
-    } VarValue;
-    
+    while (curr) {
+        appendOptimizedTAC(createTAC(curr->op, curr->arg1,
+                                     curr->arg2, curr->result));
+        curr = curr->next;
+    }
+
+    typedef struct { char* var; char* value; } VarValue;
     VarValue values[100];
     int valueCount = 0;
-    
+
+    int pass = 1;
+    int changed;
+
+    printf("\n── Multi-pass optimization ──\n");
+    do {
+        printf("  Pass %d...\n", pass++);
+        changed = optimizeTACPass(values, &valueCount);
+    } while (changed);
+
+    printf("  Converged after %d pass(es).\n", pass - 1);
+}
+
+// ADDED: A multi pass
+int optimizeTACPass(VarValue* values, int* valueCount) {
+    int changed = 0;
+    TACInstr* curr = optimizedList.head;
+
+    // Clear the optimized list for this pass
+    optimizedList.head = NULL;
+    optimizedList.tail = NULL;
+    *valueCount = 0;
+
     while (curr) {
         TACInstr* newInstr = NULL;
-        
-        switch(curr->op) {
-            case TAC_DECL:
-                newInstr = createTAC(TAC_DECL, NULL, NULL, curr->result);
-                break;
-                
+
+        switch (curr->op) {
             case TAC_ADD: {
-                // Check if both operands are constants
-                char* left = curr->arg1;
+                char* left  = curr->arg1;
                 char* right = curr->arg2;
-                
-                // Look up values in propagation table (search from most recent)
-                for (int i = valueCount - 1; i >= 0; i--) {
-                    if (strcmp(values[i].var, left) == 0) {
-                        left = values[i].value;
-                        break;
-                    }
-                }
-                for (int i = valueCount - 1; i >= 0; i--) {
-                    if (strcmp(values[i].var, right) == 0) {
-                        right = values[i].value;
-                        break;
-                    }
-                }
-                
-                // Constant folding
+
+                // Copy propagation lookups (same as before)
+                for (int i = *valueCount - 1; i >= 0; i--)
+                    if (strcmp(values[i].var, left)  == 0) { left  = values[i].value; break; }
+                for (int i = *valueCount - 1; i >= 0; i--)
+                    if (strcmp(values[i].var, right) == 0) { right = values[i].value; break; }
+
                 if (isdigit(left[0]) && isdigit(right[0])) {
                     int result = atoi(left) + atoi(right);
                     char* resultStr = malloc(20);
                     sprintf(resultStr, "%d", result);
-                    
-                    // Store for propagation
-                    values[valueCount].var = strdup(curr->result);
-                    values[valueCount].value = resultStr;
-                    valueCount++;
-                    
+
+                    values[*valueCount].var   = strdup(curr->result);
+                    values[*valueCount].value = resultStr;
+                    (*valueCount)++;
+
                     newInstr = createTAC(TAC_ASSIGN, resultStr, NULL, curr->result);
+                    changed = 1;   // ← Constant fold fired
                 } else {
                     newInstr = createTAC(TAC_ADD, left, right, curr->result);
+                    // Flag change if propagation substituted an operand
+                    if (strcmp(left, curr->arg1) != 0 || strcmp(right, curr->arg2) != 0)
+                        changed = 1;
                 }
                 break;
             }
-            
+
             case TAC_ASSIGN: {
                 char* value = curr->arg1;
-                
-                // Look up value in propagation table (search from most recent)
-                for (int i = valueCount - 1; i >= 0; i--) {
-                    if (strcmp(values[i].var, value) == 0) {
-                        value = values[i].value;
-                        break;
-                    }
-                }
-                
-                // Store for propagation
-                values[valueCount].var = strdup(curr->result);
-                values[valueCount].value = strdup(value);
-                valueCount++;
-                
+                for (int i = *valueCount - 1; i >= 0; i--)
+                    if (strcmp(values[i].var, value) == 0) { value = values[i].value; break; }
+
+                if (strcmp(value, curr->arg1) != 0)
+                    changed = 1;   // ← Copy propagation fired
+
+                values[*valueCount].var   = strdup(curr->result);
+                values[*valueCount].value = strdup(value);
+                (*valueCount)++;
+
                 newInstr = createTAC(TAC_ASSIGN, value, NULL, curr->result);
                 break;
             }
-            
+
             case TAC_PRINT: {
                 char* value = curr->arg1;
-                
-                // Look up value in propagation table
-                for (int i = valueCount - 1; i >= 0; i--) {  // Search from most recent
-                    if (strcmp(values[i].var, value) == 0) {
-                        value = values[i].value;
-                        break;
-                    }
-                }
-                
+                for (int i = *valueCount - 1; i >= 0; i--)
+                    if (strcmp(values[i].var, value) == 0) { value = values[i].value; break; }
+
+                if (strcmp(value, curr->arg1) != 0)
+                    changed = 1;
+
                 newInstr = createTAC(TAC_PRINT, value, NULL, NULL);
                 break;
             }
+
+            case TAC_DECL:
+                newInstr = createTAC(TAC_DECL, NULL, NULL, curr->result);
+                break;
         }
-        
-        if (newInstr) {
+
+        if (newInstr)
             appendOptimizedTAC(newInstr);
-        }
-        
+
         curr = curr->next;
     }
+
+    return changed;
 }
 
 void printOptimizedTAC() {
