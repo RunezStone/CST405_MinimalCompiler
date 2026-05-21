@@ -6,4 +6,6 @@
  1: DECL x
  2: DECL y
  3: DECL z
- 4: PRINT 15
+ 4: PRINT 1
+ 5: PRINT 5
+ 6: PRINT 6

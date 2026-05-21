@@ -5,9 +5,13 @@
  1: DECL x
  2: DECL y
  3: DECL z
- 4: x = 5
- 5: y = 10
- 6: z = 3
- 7: t0 = x + y
- 8: x = t0
- 9: PRINT x
+ 4: x = 1
+ 5: PRINT x
+ 6: y = 2
+ 7: x = 3
+ 8: t0 = x + y
+ 9: z = t0
+10: PRINT z
+11: t1 = z + 1
+12: z = t1
+13: PRINT z
