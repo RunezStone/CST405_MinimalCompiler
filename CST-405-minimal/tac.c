@@ -4,46 +4,36 @@
 #include <ctype.h>
 #include "tac.h"
 
-// Two global lists; the unoptimized TAC_List and the updated optimized list
+/* Two global lists: unoptimized and optimized */
 TACList tacList;
 TACList optimizedList;
 
-/* ─────────────────────────────────────────────────────────────
+/* ─────────────────────────────────────────────────────────────────────────
  * REGISTER ALLOCATOR
- * Maps TAC temporaries (t0, t1, ...) to real MIPS registers
- * ($t0–$t7, 8 available). When all registers are full, the
- * least-recently-used (LRU) one is spilled to the stack so its
- * register can be reused (reallocation / spilling).
- * ───────────────────────────────────────────────────────────── */
+ * Maps TAC temporaries (t0, t1, ...) to real MIPS registers ($t0–$t7).
+ * When all registers are full, the least-recently-used (LRU) one is
+ * spilled to the stack so its register can be reused.
+ * ───────────────────────────────────────────────────────────────────────── */
 
-#define NUM_REGS 8          /* MIPS $t0–$t7 */
-#define MAX_SPILLS 64       /* Max spill slots on the stack    */
+#define NUM_REGS   8    /* MIPS $t0–$t7              */
+#define MAX_SPILLS 64   /* Max spill slots on stack  */
 
-/* One entry in the register file */
 typedef struct {
-    char  name[32];   /* Which temporary occupies this register ("" = free) */
-    int   lastUsed;   /* Logical clock tick of last access – used for LRU   */
-    int   spilled;    /* 1 if a current copy also lives on the stack         */
+    char name[32];  /* Which temporary is here ("" = free) */
+    int  lastUsed;  /* Logical clock tick — used for LRU   */
+    int  spilled;   /* 1 if a copy also lives on the stack */
 } RegEntry;
 
-/* One entry in the spill table */
 typedef struct {
-    char name[32];    /* Temporary name that was spilled   */
-    int  stackSlot;   /* Stack slot index (slot * 4 = byte offset from $sp) */
+    char name[32];  /* Temporary that was spilled          */
+    int  stackSlot; /* Slot index (slot * 4 = byte offset) */
 } SpillEntry;
 
-/* **TEST TO SEE IF IT IS NOT NEEDED**
-typedef struct {
-    char* var;
-    char* value;
-} VarValue;
-*/
-static RegEntry  regFile[NUM_REGS];
+static RegEntry   regFile[NUM_REGS];
 static SpillEntry spillTable[MAX_SPILLS];
-static int       spillCount  = 0;
-static int       clock_tick  = 0;   /* Incremented on every allocation */
+static int        spillCount = 0;
+static int        clock_tick = 0;
 
-/* NEW FUNCTION: Initialise the register EIGHT file ($t0 - $t7)– call once before allocating */
 void initRegAlloc() {
     for (int i = 0; i < NUM_REGS; i++) {
         regFile[i].name[0] = '\0';
@@ -57,7 +47,6 @@ void initRegAlloc() {
     printf("└──────────────────────────────────────────────────────────┘\n");
 }
 
-/* Return the register index already holding 'name', or -1 */
 static int findReg(const char* name) {
     for (int i = 0; i < NUM_REGS; i++)
         if (regFile[i].name[0] && strcmp(regFile[i].name, name) == 0)
@@ -65,7 +54,6 @@ static int findReg(const char* name) {
     return -1;
 }
 
-/* Return the index of the free register, or -1 if all are occupied */
 static int findFreeReg() {
     for (int i = 0; i < NUM_REGS; i++)
         if (regFile[i].name[0] == '\0')
@@ -73,7 +61,6 @@ static int findFreeReg() {
     return -1;
 }
 
-/* Return the LRU register index (the one with the smallest lastUsed) */
 static int lruReg() {
     int lru = 0;
     for (int i = 1; i < NUM_REGS; i++)
@@ -82,7 +69,6 @@ static int lruReg() {
     return lru;
 }
 
-/* Spill register 'reg' to the stack and record it in the spill table */
 static void spillReg(int reg) {
     if (spillCount >= MAX_SPILLS) {
         fprintf(stderr, "❌ Register Allocator Error: spill table full\n");
@@ -96,31 +82,20 @@ static void spillReg(int reg) {
     regFile[reg].spilled = 1;
 }
 
-/* Reload a previously-spilled temporary into register 'reg' */
 static void reloadReg(int reg, const char* name) {
     for (int i = 0; i < spillCount; i++) {
         if (strcmp(spillTable[i].name, name) == 0) {
             printf("  ⬆ RELOAD: stack slot %d → $t%d (%s)  (lw $t%d, %d($sp))\n",
-                   spillTable[i].stackSlot, reg, name, reg, spillTable[i].stackSlot * 4);
+                   spillTable[i].stackSlot, reg, name, reg,
+                   spillTable[i].stackSlot * 4);
             return;
         }
     }
 }
 
-/*
- * allocReg(name) – the main entry point.
- *
- * Given a temporary name (e.g. "t0", "x", "5"):
- *   • If it is already in a register, return that register (hit).
- *   • If a free register exists, put it there (fresh allocation).
- *   • Otherwise, spill the LRU register and reuse it (reallocation).
- *
- * Returns the register index (0–7) and prints a trace line.
- */
 int allocReg(const char* name) {
     clock_tick++;
 
-    /* 1. Already in a register? – just update LRU and return */
     int reg = findReg(name);
     if (reg != -1) {
         regFile[reg].lastUsed = clock_tick;
@@ -128,10 +103,8 @@ int allocReg(const char* name) {
         return reg;
     }
 
-    /* 2. Free register available? */
     reg = findFreeReg();
     if (reg != -1) {
-        /* Check if it needs to be reloaded from a previous spill */
         int wasSpilled = 0;
         for (int i = 0; i < spillCount; i++) {
             if (strcmp(spillTable[i].name, name) == 0) {
@@ -142,20 +115,17 @@ int allocReg(const char* name) {
         }
         if (!wasSpilled)
             printf("  + ALLOC:  '%s' → $t%d  (free register)\n", name, reg);
-
         strncpy(regFile[reg].name, name, 31);
         regFile[reg].lastUsed = clock_tick;
         regFile[reg].spilled  = 0;
         return reg;
     }
 
-    /* 3. No free register – spill LRU and reuse it (reallocation) */
     reg = lruReg();
     printf("  ! REALLOC: all registers full – evicting $t%d (%s)\n",
            reg, regFile[reg].name);
     spillReg(reg);
 
-    /* Check if new value was previously spilled */
     int wasSpilled = 0;
     for (int i = 0; i < spillCount; i++) {
         if (strcmp(spillTable[i].name, name) == 0) {
@@ -173,7 +143,6 @@ int allocReg(const char* name) {
     return reg;
 }
 
-/* Free a register when its value is no longer needed */
 void freeReg(const char* name) {
     int reg = findReg(name);
     if (reg != -1) {
@@ -183,7 +152,6 @@ void freeReg(const char* name) {
     }
 }
 
-/* Print the current state of all registers */
 void printRegState() {
     printf("\n  Register file state:\n");
     printf("  ┌──────┬──────────────┬──────────┐\n");
@@ -198,14 +166,6 @@ void printRegState() {
     printf("  └──────┴──────────────┴──────────┘\n");
 }
 
-/*
- * allocateRegistersForTAC()
- *
- * Walk the optimised TAC list and call allocReg/freeReg for every
- * operand and result, simulating what a real back-end would do.
- * Temporaries are freed as soon as their result has been assigned
- * to a named variable (they are no longer live after that point).
- */
 void allocateRegistersForTAC() {
     printf("\n┌──────────────────────────────────────────────────────────┐\n");
     printf("│ PHASE: REGISTER ALLOCATION                               │\n");
@@ -226,12 +186,9 @@ void allocateRegistersForTAC() {
 
             case TAC_ASSIGN:
                 printf("%s = %s\n", curr->result, curr->arg1);
-                /* Allocate source (may already be in a register) */
                 if (curr->arg1 && !isdigit((unsigned char)curr->arg1[0]))
                     allocReg(curr->arg1);
-                /* Allocate destination */
                 allocReg(curr->result);
-                /* Free any temporary used as source */
                 if (curr->arg1 && curr->arg1[0] == 't')
                     freeReg(curr->arg1);
                 break;
@@ -243,7 +200,6 @@ void allocateRegistersForTAC() {
                 if (curr->arg2 && !isdigit((unsigned char)curr->arg2[0]))
                     allocReg(curr->arg2);
                 allocReg(curr->result);
-                /* Free operand temporaries after use */
                 if (curr->arg1 && curr->arg1[0] == 't') freeReg(curr->arg1);
                 if (curr->arg2 && curr->arg2[0] == 't') freeReg(curr->arg2);
                 break;
@@ -252,6 +208,40 @@ void allocateRegistersForTAC() {
                 printf("PRINT %s\n", curr->arg1);
                 if (curr->arg1 && !isdigit((unsigned char)curr->arg1[0]))
                     allocReg(curr->arg1);
+                break;
+
+            /* ── NEW: function opcodes in register allocator ── */
+            case TAC_FUNC_BEGIN:
+                printf("FUNC_BEGIN %s  →  reset frame\n", curr->result);
+                /* Each function gets a fresh register context */
+                initRegAlloc();
+                break;
+
+            case TAC_FUNC_END:
+                printf("FUNC_END %s\n", curr->result);
+                break;
+
+            case TAC_PARAM:
+                printf("PARAM %s  →  allocate for parameter\n", curr->result);
+                allocReg(curr->result);
+                break;
+
+            case TAC_ARG:
+                printf("ARG %s  →  load argument\n", curr->result);
+                if (curr->result && !isdigit((unsigned char)curr->result[0]))
+                    allocReg(curr->result);
+                break;
+
+            case TAC_CALL:
+                printf("%s = CALL %s, %s\n", curr->result, curr->arg1, curr->arg2);
+                /* Result lands in $v0 in MIPS; map to a temp register here */
+                allocReg(curr->result);
+                break;
+
+            case TAC_RETURN:
+                printf("RETURN %s\n", curr->result);
+                if (curr->result && !isdigit((unsigned char)curr->result[0]))
+                    allocReg(curr->result);
                 break;
 
             default:
@@ -264,7 +254,8 @@ void allocateRegistersForTAC() {
     printRegState();
 
     if (spillCount > 0) {
-        printf("\n  ── Spill summary: %d variable(s) spilled to stack ──\n", spillCount);
+        printf("\n  ── Spill summary: %d variable(s) spilled to stack ──\n",
+               spillCount);
         for (int i = 0; i < spillCount; i++)
             printf("     slot %d: '%s'  (at %d($sp))\n",
                    i, spillTable[i].name, i * 4);
@@ -273,9 +264,13 @@ void allocateRegistersForTAC() {
     }
 }
 
+/* ─────────────────────────────────────────────────────────────────────────
+ * CORE TAC INFRASTRUCTURE
+ * ───────────────────────────────────────────────────────────────────────── */
+
 void initTAC() {
-    tacList.head = NULL;
-    tacList.tail = NULL;
+    tacList.head      = NULL;
+    tacList.tail      = NULL;
     tacList.tempCount = 0;
     optimizedList.head = NULL;
     optimizedList.tail = NULL;
@@ -289,11 +284,11 @@ char* newTemp() {
 
 TACInstr* createTAC(TACOp op, char* arg1, char* arg2, char* result) {
     TACInstr* instr = malloc(sizeof(TACInstr));
-    instr->op = op;
-    instr->arg1 = arg1 ? strdup(arg1) : NULL;
-    instr->arg2 = arg2 ? strdup(arg2) : NULL;
+    instr->op     = op;
+    instr->arg1   = arg1   ? strdup(arg1)   : NULL;
+    instr->arg2   = arg2   ? strdup(arg2)   : NULL;
     instr->result = result ? strdup(result) : NULL;
-    instr->next = NULL;
+    instr->next   = NULL;
     return instr;
 }
 
@@ -315,61 +310,257 @@ void appendOptimizedTAC(TACInstr* instr) {
     }
 }
 
+/* ─────────────────────────────────────────────────────────────────────────
+ * EXPRESSION GENERATION
+ * ───────────────────────────────────────────────────────────────────────── */
+
 char* generateTACExpr(ASTNode* node) {
     if (!node) return NULL;
-    
-    switch(node->type) {
+
+    switch (node->type) {
         case NODE_NUM: {
             char* temp = malloc(20);
             sprintf(temp, "%d", node->data.num);
             return temp;
         }
-        
+
         case NODE_VAR:
             return strdup(node->data.name);
-        
+
         case NODE_BINOP: {
-            char* left = generateTACExpr(node->data.binop.left);
+            char* left  = generateTACExpr(node->data.binop.left);
             char* right = generateTACExpr(node->data.binop.right);
-            char* temp = newTemp();
-            
-            if (node->data.binop.op == '+') {
+            char* temp  = newTemp();
+            if (node->data.binop.op == '+')
                 appendTAC(createTAC(TAC_ADD, left, right, temp));
-            }
-            
             return temp;
         }
-        
+
+        /* ── NEW: function call as an expression (RHS of assignment) ── */
+        case NODE_FUNC_CALL:
+            return generateTACFuncCall(node);
+
         default:
             return NULL;
     }
 }
 
-void generateTAC(ASTNode* node) {
-    if (!node) return;
-    
-    switch(node->type) {
-        case NODE_DECL:
-            appendTAC(createTAC(TAC_DECL, node->data.decl.varType, NULL, node->data.decl.name));
-            break;
-            
-        case NODE_ASSIGN: {
-            char* expr = generateTACExpr(node->data.assign.value);
-            appendTAC(createTAC(TAC_ASSIGN, expr, NULL, node->data.assign.var));
+/* ─────────────────────────────────────────────────────────────────────────
+ * NEW: FUNCTION CALL GENERATION
+ * Emits ARG instructions for each argument, then a CALL instruction.
+ * Returns the temporary that holds the return value.
+ * ───────────────────────────────────────────────────────────────────────── */
+char* generateTACFuncCall(ASTNode* node) {
+    if (!node || node->type != NODE_FUNC_CALL) return NULL;
+
+    /* Emit ARG for each argument (left to right) */
+    int argCount = 0;
+    ASTNode* arg = node->data.func_call.args;
+    while (arg) {
+        if (arg->type == NODE_ARG_LIST) {
+            char* argVal = generateTACExpr(arg->data.arg_list.expr);
+            appendTAC(createTAC(TAC_ARG, NULL, NULL, argVal));
+            argCount++;
+            arg = arg->data.arg_list.next;
+        } else {
+            /* Single expression not wrapped in ARG_LIST */
+            char* argVal = generateTACExpr(arg);
+            appendTAC(createTAC(TAC_ARG, NULL, NULL, argVal));
+            argCount++;
             break;
         }
-        
+    }
+
+    /* t0 = CALL funcName, argCount */
+    char* resultTemp = newTemp();
+    char  countStr[16];
+    snprintf(countStr, sizeof(countStr), "%d", argCount);
+    appendTAC(createTAC(TAC_CALL, node->data.func_call.name, countStr, resultTemp));
+
+    return resultTemp;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * NEW: FUNCTION DECLARATION GENERATION
+ * Emits FUNC_BEGIN, PARAM instructions, body TAC, optional RETURN,
+ * and FUNC_END.
+ * ───────────────────────────────────────────────────────────────────────── */
+void generateTACFuncDecl(ASTNode* node) {
+    if (!node || node->type != NODE_FUNC_DEF) return;
+
+    /* FUNC_BEGIN funcName */
+    appendTAC(createTAC(TAC_FUNC_BEGIN, NULL, NULL,
+                        node->data.func_def.name));
+
+    /* PARAM for each parameter — walk the param list */
+    ASTNode* p = node->data.func_def.params;
+    while (p) {
+        if (p->type == NODE_PARAM) {
+            appendTAC(createTAC(TAC_PARAM, NULL, NULL,
+                                p->data.param.name));
+            break;
+        } else if (p->type == NODE_PARAM_LIST) {
+            ASTNode* param = p->data.param_list.param;
+            if (param) {
+                if (param->type == NODE_PARAM)
+                    appendTAC(createTAC(TAC_PARAM, NULL, NULL,
+                                        param->data.param.name));
+                else if (param->type == NODE_ARRAY_DECL)
+                    appendTAC(createTAC(TAC_PARAM, NULL, NULL,
+                                        param->data.array_decl.name));
+            }
+            p = p->data.param_list.next;
+        } else {
+            break;
+        }
+    }
+
+    /* Generate TAC for the body */
+    generateTAC(node->data.func_def.body);
+
+    /* RETURN — read from end_clause node */
+    ASTNode* ec = node->data.func_def.end_clause;
+    if (ec && ec->data.name != NULL) {
+        /* "end result;" — return the named variable */
+        appendTAC(createTAC(TAC_RETURN, NULL, NULL, ec->data.name));
+    }
+    /* "end null;" — void, no RETURN instruction needed */
+
+    /* FUNC_END funcName */
+    appendTAC(createTAC(TAC_FUNC_END, NULL, NULL,
+                        node->data.func_def.name));
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * NEW: WALK A STMT_LIST OF FUNCTION DEFINITIONS
+ * ───────────────────────────────────────────────────────────────────────── */
+void generateTACFuncList(ASTNode* node) {
+    if (!node) return;
+    if (node->type == NODE_STMT_LIST) {
+        generateTACFuncList(node->data.stmtlist.stmt);
+        generateTACFuncList(node->data.stmtlist.next);
+    } else if (node->type == NODE_FUNC_DEF) {
+        generateTACFuncDecl(node);
+    }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * NEW: PROGRAM_START GENERATION
+ * Wraps the entry body in FUNC_BEGIN/FUNC_END like any other function.
+ * ───────────────────────────────────────────────────────────────────────── */
+void generateTACProgramStart(ASTNode* node) {
+    if (!node || node->type != NODE_PROGRAM_START) return;
+
+    appendTAC(createTAC(TAC_FUNC_BEGIN, NULL, NULL, "Program_Start"));
+    generateTAC(node->data.block.stmt_list);
+    appendTAC(createTAC(TAC_FUNC_END,   NULL, NULL, "Program_Start"));
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * TOP-LEVEL TAC GENERATION
+ * Handles NODE_PROGRAM root as well as all existing node types.
+ * ───────────────────────────────────────────────────────────────────────── */
+void generateTAC(ASTNode* node) {
+    if (!node) return;
+
+    switch (node->type) {
+
+        /* ── NEW: root program node ── */
+        case NODE_PROGRAM:
+            /* 1. Global declarations */
+            generateTAC(node->data.program.globals);
+            /* 2. Function definitions */
+            generateTACFuncList(node->data.program.funcs);
+            /* 3. Program_Start entry block */
+            generateTACProgramStart(node->data.program.start);
+            break;
+
+        case NODE_DECL:
+            appendTAC(createTAC(TAC_DECL,
+                                node->data.decl.varType,
+                                NULL,
+                                node->data.decl.name));
+            break;
+
+        case NODE_ASSIGN: {
+            /* ── UPDATED: detect func call on RHS ── */
+            char* expr;
+            if (node->data.assign.value &&
+                node->data.assign.value->type == NODE_FUNC_CALL) {
+                expr = generateTACFuncCall(node->data.assign.value);
+            } else {
+                expr = generateTACExpr(node->data.assign.value);
+            }
+            appendTAC(createTAC(TAC_ASSIGN, expr, NULL,
+                                node->data.assign.var));
+            break;
+        }
+
         case NODE_PRINT: {
             char* expr = generateTACExpr(node->data.expr);
             appendTAC(createTAC(TAC_PRINT, expr, NULL, NULL));
             break;
         }
-        
+
+        /* ── NEW: standalone function call statement ── */
+        case NODE_FUNC_CALL:
+            generateTACFuncCall(node);   /* result temp is discarded */
+            break;
+
         case NODE_STMT_LIST:
             generateTAC(node->data.stmtlist.stmt);
             generateTAC(node->data.stmtlist.next);
             break;
-            
+
+        default:
+            break;
+    }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * PRINT / DISPLAY
+ * ───────────────────────────────────────────────────────────────────────── */
+
+/* Helper: print one instruction to a FILE* (stdout or file) */
+static void printOneInstr(FILE* out, TACInstr* curr, int lineNum) {
+    fprintf(out, "%2d: ", lineNum);
+    switch (curr->op) {
+        case TAC_DECL:
+            fprintf(out, "DECL %s %s\n",
+                    curr->arg1 ? curr->arg1 : "",
+                    curr->result ? curr->result : "");
+            break;
+        case TAC_ASSIGN:
+            fprintf(out, "%s = %s\n",
+                    curr->result, curr->arg1);
+            break;
+        case TAC_ADD:
+            fprintf(out, "%s = %s + %s\n",
+                    curr->result, curr->arg1, curr->arg2);
+            break;
+        case TAC_PRINT:
+            fprintf(out, "PRINT %s\n", curr->arg1);
+            break;
+        /* ── NEW opcodes ── */
+        case TAC_FUNC_BEGIN:
+            fprintf(out, "FUNC_BEGIN %s\n", curr->result);
+            break;
+        case TAC_FUNC_END:
+            fprintf(out, "FUNC_END %s\n", curr->result);
+            break;
+        case TAC_PARAM:
+            fprintf(out, "PARAM %s\n", curr->result);
+            break;
+        case TAC_ARG:
+            fprintf(out, "ARG %s\n", curr->result);
+            break;
+        case TAC_CALL:
+            fprintf(out, "%s = CALL %s, %s\n",
+                    curr->result, curr->arg1, curr->arg2);
+            break;
+        case TAC_RETURN:
+            fprintf(out, "RETURN %s\n", curr->result);
+            break;
         default:
             break;
     }
@@ -381,35 +572,28 @@ void printTAC() {
     TACInstr* curr = tacList.head;
     int lineNum = 1;
     while (curr) {
-        printf("%2d: ", lineNum++);
-        switch(curr->op) {
-            case TAC_DECL:
-                printf("DECL %s %s", curr->arg1 ? curr->arg1 : "", curr->result);
-                printf("       // Declare variable '%s' (type: %s)\n", curr->result, curr->arg1 ? curr->arg1 : "unknown");
-                break;
-            case TAC_ADD:
-                printf("%s = %s + %s", curr->result, curr->arg1, curr->arg2);
-                printf("     // Add: store result in %s\n", curr->result);
-                break;
-            case TAC_ASSIGN:
-                printf("%s = %s", curr->result, curr->arg1);
-                printf("           // Assign value to %s\n", curr->result);
-                break;
-            case TAC_PRINT:
-                printf("PRINT %s", curr->arg1);
-                printf("          // Output value of %s\n", curr->arg1);
-                break;
-            default:
-                break;
-        }
+        printOneInstr(stdout, curr, lineNum++);
         curr = curr->next;
     }
 }
 
-// Simple optimization: constant folding and copy propagation
+void printOptimizedTAC() {
+    printf("Optimized TAC Instructions:\n");
+    printf("─────────────────────────────\n");
+    TACInstr* curr = optimizedList.head;
+    int lineNum = 1;
+    while (curr) {
+        printOneInstr(stdout, curr, lineNum++);
+        curr = curr->next;
+    }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * OPTIMIZATION
+ * ───────────────────────────────────────────────────────────────────────── */
+
 void optimizeTAC() {
-    // Seed the optimized list from the original TAC
-    // (first pass reads from tacList, subsequent passes re-process optimizedList)
+    /* Seed optimized list from the original */
     TACInstr* curr = tacList.head;
     while (curr) {
         appendOptimizedTAC(createTAC(curr->op, curr->arg1,
@@ -417,11 +601,8 @@ void optimizeTAC() {
         curr = curr->next;
     }
 
-    //**TEST TO SEE IF IT IS NOT NEEDED**
-    //typedef struct { char* var; char* value; } VarValue;
     VarValue values[100];
     int valueCount = 0;
-
     int pass = 1;
     int changed;
 
@@ -430,19 +611,15 @@ void optimizeTAC() {
         printf("  Pass %d...\n", pass++);
         changed = optimizeTACPass(values, &valueCount);
     } while (changed);
-
     printf("  Converged after %d pass(es).\n", pass - 1);
-    
-    eliminateDeadCode();   
+
+    eliminateDeadCode();
 }
 
-
-// ADDED: A multi pass
 int optimizeTACPass(VarValue* values, int* valueCount) {
     int changed = 0;
     TACInstr* curr = optimizedList.head;
 
-    // Clear the optimized list for this pass
     optimizedList.head = NULL;
     optimizedList.tail = NULL;
     *valueCount = 0;
@@ -455,27 +632,25 @@ int optimizeTACPass(VarValue* values, int* valueCount) {
                 char* left  = curr->arg1;
                 char* right = curr->arg2;
 
-                // Copy propagation lookups (same as before)
                 for (int i = *valueCount - 1; i >= 0; i--)
                     if (strcmp(values[i].var, left)  == 0) { left  = values[i].value; break; }
                 for (int i = *valueCount - 1; i >= 0; i--)
                     if (strcmp(values[i].var, right) == 0) { right = values[i].value; break; }
 
-                if (isdigit(left[0]) && isdigit(right[0])) {
+                if (isdigit((unsigned char)left[0]) &&
+                    isdigit((unsigned char)right[0])) {
                     int result = atoi(left) + atoi(right);
                     char* resultStr = malloc(20);
                     sprintf(resultStr, "%d", result);
-
                     values[*valueCount].var   = strdup(curr->result);
                     values[*valueCount].value = resultStr;
                     (*valueCount)++;
-
                     newInstr = createTAC(TAC_ASSIGN, resultStr, NULL, curr->result);
-                    changed = 1;   // ← Constant fold fired
+                    changed = 1;
                 } else {
                     newInstr = createTAC(TAC_ADD, left, right, curr->result);
-                    // Flag change if propagation substituted an operand
-                    if (strcmp(left, curr->arg1) != 0 || strcmp(right, curr->arg2) != 0)
+                    if (strcmp(left,  curr->arg1) != 0 ||
+                        strcmp(right, curr->arg2) != 0)
                         changed = 1;
                 }
                 break;
@@ -485,14 +660,10 @@ int optimizeTACPass(VarValue* values, int* valueCount) {
                 char* value = curr->arg1;
                 for (int i = *valueCount - 1; i >= 0; i--)
                     if (strcmp(values[i].var, value) == 0) { value = values[i].value; break; }
-
-                if (strcmp(value, curr->arg1) != 0)
-                    changed = 1;   // ← Copy propagation fired
-
+                if (strcmp(value, curr->arg1) != 0) changed = 1;
                 values[*valueCount].var   = strdup(curr->result);
                 values[*valueCount].value = strdup(value);
                 (*valueCount)++;
-
                 newInstr = createTAC(TAC_ASSIGN, value, NULL, curr->result);
                 break;
             }
@@ -501,16 +672,41 @@ int optimizeTACPass(VarValue* values, int* valueCount) {
                 char* value = curr->arg1;
                 for (int i = *valueCount - 1; i >= 0; i--)
                     if (strcmp(values[i].var, value) == 0) { value = values[i].value; break; }
-
-                if (strcmp(value, curr->arg1) != 0)
-                    changed = 1;
-
+                if (strcmp(value, curr->arg1) != 0) changed = 1;
                 newInstr = createTAC(TAC_PRINT, value, NULL, NULL);
                 break;
             }
 
             case TAC_DECL:
-                newInstr = createTAC(TAC_DECL, NULL, NULL, curr->result);
+                newInstr = createTAC(TAC_DECL, curr->arg1, NULL, curr->result);
+                break;
+
+            /* ── NEW: pass function opcodes through unchanged ──
+             * These are never folded or propagated — they are structural
+             * markers that the code generator depends on.              */
+            case TAC_FUNC_BEGIN:
+                /* Each new function boundary invalidates known values */
+                *valueCount = 0;
+                newInstr = createTAC(TAC_FUNC_BEGIN, NULL, NULL, curr->result);
+                break;
+            case TAC_FUNC_END:
+                newInstr = createTAC(TAC_FUNC_END, NULL, NULL, curr->result);
+                break;
+            case TAC_PARAM:
+                newInstr = createTAC(TAC_PARAM, NULL, NULL, curr->result);
+                break;
+            case TAC_ARG:
+                newInstr = createTAC(TAC_ARG, NULL, NULL, curr->result);
+                break;
+            case TAC_CALL:
+                /* Result of a call is unknown at compile time — don't fold */
+                newInstr = createTAC(TAC_CALL, curr->arg1, curr->arg2, curr->result);
+                break;
+            case TAC_RETURN:
+                newInstr = createTAC(TAC_RETURN, NULL, NULL, curr->result);
+                break;
+
+            default:
                 break;
         }
 
@@ -523,31 +719,39 @@ int optimizeTACPass(VarValue* values, int* valueCount) {
     return changed;
 }
 
-//added: dead code elimination (DCE) pass that runs after constant folding and copy propagation
 void eliminateDeadCode() {
-    // --- Pass 1: collect every variable that is READ ---
+    /* Pass 1: collect every variable that is READ */
     char used[100][32];
-    int usedCount = 0;
+    int  usedCount = 0;
 
     TACInstr* curr = optimizedList.head;
     while (curr) {
-        // arg1 and arg2 are "read" operands
         if (curr->arg1 && !isdigit((unsigned char)curr->arg1[0]))
             strncpy(used[usedCount++], curr->arg1, 31);
         if (curr->arg2 && !isdigit((unsigned char)curr->arg2[0]))
             strncpy(used[usedCount++], curr->arg2, 31);
-        // PRINT reads its argument too
+        /* TAC_ARG reads result; TAC_RETURN reads result */
+        if ((curr->op == TAC_ARG || curr->op == TAC_RETURN) &&
+             curr->result && !isdigit((unsigned char)curr->result[0]))
+            strncpy(used[usedCount++], curr->result, 31);
         curr = curr->next;
     }
 
-    // --- Pass 2: drop instructions whose result is never read ---
+    /* Pass 2: drop instructions whose result is never read */
     TACInstr* prev = NULL;
     curr = optimizedList.head;
     while (curr) {
         int isUsed = 0;
 
-        // DECL / PRINT are always "live" (side-effectful)
-        if (curr->op == TAC_DECL || curr->op == TAC_PRINT) {
+        /* These are always live — structural or have side effects */
+        if (curr->op == TAC_DECL       ||
+            curr->op == TAC_PRINT      ||
+            curr->op == TAC_FUNC_BEGIN ||
+            curr->op == TAC_FUNC_END   ||
+            curr->op == TAC_PARAM      ||
+            curr->op == TAC_ARG        ||
+            curr->op == TAC_CALL       ||
+            curr->op == TAC_RETURN) {
             isUsed = 1;
         } else if (curr->result) {
             for (int i = 0; i < usedCount; i++) {
@@ -567,7 +771,6 @@ void eliminateDeadCode() {
             if (optimizedList.tail == dead)
                 optimizedList.tail = prev;
             curr = curr->next;
-            // free dead->arg1, arg2, result, dead itself
         } else {
             prev = curr;
             curr = curr->next;
@@ -575,117 +778,41 @@ void eliminateDeadCode() {
     }
 }
 
-void printOptimizedTAC() {
-    printf("Optimized TAC Instructions:\n");
-    printf("─────────────────────────────\n");
-    TACInstr* curr = optimizedList.head;
-    int lineNum = 1;
-    while (curr) {
-        printf("%2d: ", lineNum++);
-        switch(curr->op) {
-            case TAC_DECL:
-                printf("DECL %s\n", curr->result);
-                break;
-            case TAC_ADD:
-                printf("%s = %s + %s", curr->result, curr->arg1, curr->arg2);
-                printf("     // Runtime addition needed\n");
-                break;
-            case TAC_ASSIGN:
-                printf("%s = %s", curr->result, curr->arg1);
-                // Check if it's a constant
-                if (curr->arg1[0] >= '0' && curr->arg1[0] <= '9') {
-                    printf("           // Constant value: %s\n", curr->arg1);
-                } else {
-                    printf("           // Copy value\n");
-                }
-                break;
-            case TAC_PRINT:
-                printf("PRINT %s", curr->arg1);
-                // Check if it's a constant
-                if (curr->arg1[0] >= '0' && curr->arg1[0] <= '9') {
-                    printf("          // Print constant: %s\n", curr->arg1);
-                } else {
-                    printf("          // Print variable\n");
-                }
-                break;
-            default:
-                break;
-        }
-        curr = curr->next;
-    }
-}
+/* ─────────────────────────────────────────────────────────────────────────
+ * FILE OUTPUT
+ * ───────────────────────────────────────────────────────────────────────── */
 
 void saveTACToFile(const char* filename) {
     FILE* file = fopen(filename, "w");
     if (!file) {
-        fprintf(stderr, "Error: Cannot open file '%s' for writing\n", filename);
+        fprintf(stderr, "Error: Cannot open '%s' for writing\n", filename);
         return;
     }
-
     fprintf(file, "# Three-Address Code (TAC) - Unoptimized\n");
-    fprintf(file, "# Generated by Minimal C Compiler\n");
     fprintf(file, "# ─────────────────────────────────────\n\n");
-
     TACInstr* curr = tacList.head;
     int lineNum = 1;
     while (curr) {
-        fprintf(file, "%2d: ", lineNum++);
-        switch(curr->op) {
-            case TAC_DECL:
-                fprintf(file, "DECL %s\n", curr->result);
-                break;
-            case TAC_ADD:
-                fprintf(file, "%s = %s + %s\n", curr->result, curr->arg1, curr->arg2);
-                break;
-            case TAC_ASSIGN:
-                fprintf(file, "%s = %s\n", curr->result, curr->arg1);
-                break;
-            case TAC_PRINT:
-                fprintf(file, "PRINT %s\n", curr->arg1);
-                break;
-            default:
-                break;
-        }
+        printOneInstr(file, curr, lineNum++);
         curr = curr->next;
     }
-
     fclose(file);
 }
 
 void saveOptimizedTACToFile(const char* filename) {
     FILE* file = fopen(filename, "w");
     if (!file) {
-        fprintf(stderr, "Error: Cannot open file '%s' for writing\n", filename);
+        fprintf(stderr, "Error: Cannot open '%s' for writing\n", filename);
         return;
     }
-
     fprintf(file, "# Three-Address Code (TAC) - Optimized\n");
-    fprintf(file, "# Generated by Minimal C Compiler\n");
-    fprintf(file, "# Optimizations applied: Constant folding, Copy propagation\n");
+    fprintf(file, "# Optimizations: Constant folding, Copy propagation, DCE\n");
     fprintf(file, "# ─────────────────────────────────────\n\n");
-
     TACInstr* curr = optimizedList.head;
     int lineNum = 1;
     while (curr) {
-        fprintf(file, "%2d: ", lineNum++);
-        switch(curr->op) {
-            case TAC_DECL:
-                fprintf(file, "DECL %s\n", curr->result);
-                break;
-            case TAC_ADD:
-                fprintf(file, "%s = %s + %s\n", curr->result, curr->arg1, curr->arg2);
-                break;
-            case TAC_ASSIGN:
-                fprintf(file, "%s = %s\n", curr->result, curr->arg1);
-                break;
-            case TAC_PRINT:
-                fprintf(file, "PRINT %s\n", curr->arg1);
-                break;
-            default:
-                break;
-        }
+        printOneInstr(file, curr, lineNum++);
         curr = curr->next;
     }
-
     fclose(file);
 }

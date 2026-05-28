@@ -3,6 +3,11 @@
  * This is the second phase of compilation - checking grammar rules
  * Bison generates a parser that builds an Abstract Syntax Tree (AST)
  * The parser uses tokens from the scanner to verify syntax is correct
+ *
+ * LANGUAGE STRUCTURE:
+ *   1. Global variable declarations  (int x; int y;)
+ *   2. Function declarations         (func add(int a, int b) ... end result;)
+ *   3. Program_Start block           (Program_Start() ... end null;)
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -22,7 +27,6 @@ ASTNode* root = NULL;          /* Root of the Abstract Syntax Tree */
 
 /* SEMANTIC VALUES UNION
  * Defines possible types for tokens and grammar symbols
- * This allows different grammar rules to return different data types
  */
 %union {
     int num;                /* For integer literals */
@@ -30,58 +34,258 @@ ASTNode* root = NULL;          /* Root of the Abstract Syntax Tree */
     struct ASTNode* node;   /* For AST nodes */
 }
 
-/* TOKEN DECLARATIONS with their semantic value types */
-%token <num> NUM        /* Number token carries an integer value */
-%token <str> ID         /* Identifier token carries a string */
-%token INT PRINT        /* Keywords have no semantic value */
+/* TOKEN DECLARATIONS */
+%token <num> NUM            /* Number literal: carries integer value */
+%token <str> ID             /* Identifier: carries string name */
+%token INT PRINT            /* Original keywords */
+%token FUNC PROGRAM_START   /* Function keywords */
+%token END NULLTOK          /* End-clause keywords */
 
-/* NON-TERMINAL TYPES - Define what type each grammar rule returns */
-%type <node> program stmt_list stmt decl assign expr print_stmt id_list
+/* NON-TERMINAL TYPES */
+%type <node> program
+%type <node> global_list
+%type <node> func_decl_list func_decl
+%type <node> param_list param_item
+%type <node> end_clause
+%type <node> program_start
+%type <node> stmt_list stmt
+%type <node> decl assign print_stmt
+%type <node> id_list
+%type <node> expr
+%type <node> func_call arg_list
 
-/* OPERATOR PRECEDENCE AND ASSOCIATIVITY */
-%left '+'  /* Addition is left-associative: a+b+c = (a+b)+c */
+/* OPERATOR PRECEDENCE */
+%left '+'
 
 %%
 
-/* GRAMMAR RULES - Define the structure of our language */
+/* ================================================================
+ * TOP-LEVEL PROGRAM STRUCTURE
+ * globals → functions → Program_Start
+ * ================================================================ */
 
-/* PROGRAM RULE - Entry point of our grammar */
 program:
-    stmt_list { 
-        /* Action: Save the statement list as our AST root */
-        root = $1;  /* $1 refers to the first symbol (stmt_list) */
+    global_list func_decl_list program_start {
+        /* Full program: globals, functions, then entry point */
+        root = createProgram($1, $2, $3);
+    }
+    | global_list program_start {
+        /* No functions — just globals then Program_Start */
+        root = createProgram($1, NULL, $2);
     }
     ;
 
-/* STATEMENT LIST - Handles multiple statements */
+/* ================================================================
+ * GLOBAL VARIABLE DECLARATIONS
+ * Zero or more "int x;" statements at the top of the file
+ * ================================================================ */
+
+global_list:
+    /* empty */ {
+        $$ = NULL;
+    }
+    | global_list decl {
+        $$ = createStmtList($1, $2);
+    }
+    ;
+
+/* ================================================================
+ * FUNCTION DECLARATIONS
+ * One or more func blocks before Program_Start
+ * ================================================================ */
+
+func_decl_list:
+    func_decl {
+        /* Base case: single function */
+        $$ = $1;
+    }
+    | func_decl_list func_decl {
+        /* Multiple functions: build a list */
+        $$ = createStmtList($1, $2);
+    }
+    ;
+
+/* SINGLE FUNCTION:
+ *   func add(int a, int b)
+ *       int result;
+ *       result = a + b;
+ *   end result;
+ */
+func_decl:
+    FUNC ID '(' param_list ')' stmt_list end_clause {
+        /* Function with parameters */
+        $$ = createFuncDecl($2, $4, $6, $7);
+        free($2);
+    }
+    | FUNC ID '(' ')' stmt_list end_clause {
+        /* Function with no parameters */
+        $$ = createFuncDecl($2, NULL, $5, $6);
+        free($2);
+    }
+    | FUNC ID '(' param_list ')' end_clause {
+        /* Function with params but empty body */
+        $$ = createFuncDecl($2, $4, NULL, $6);
+        free($2);
+    }
+    | FUNC ID '(' ')' end_clause {
+        /* Function with no params and empty body */
+        $$ = createFuncDecl($2, NULL, NULL, $5);
+        free($2);
+    }
+    | FUNC error {
+        fprintf(stderr, "\n❌ Syntax Error at line %d:\n", yylineno);
+        fprintf(stderr, "   Malformed function declaration\n");
+        fprintf(stderr, "   💡 Suggestion: Use 'func name(int a, int b) ... end null;'\n\n");
+        $$ = NULL;
+        yyerrok;
+    }
+    ;
+
+/* ================================================================
+ * PARAMETER LIST
+ * "int a" or "int a, int b, int c"
+ * ================================================================ */
+
+param_list:
+    param_item {
+        /* Single parameter — wrap in NODE_PARAM_LIST so appendParamList
+         * always receives a list head, never a raw NODE_PARAM */
+        $$ = createParamList($1, NULL);
+    }
+    | param_list ',' param_item {
+        /* Multiple parameters */
+        $$ = appendParamList($1, $3);
+    }
+    | param_list ',' error {
+        fprintf(stderr, "\n❌ Syntax Error at line %d:\n", yylineno);
+        fprintf(stderr, "   Expected 'int <name>' after comma in parameter list\n");
+        fprintf(stderr, "   💡 Suggestion: Each parameter must have a type, e.g. 'int x'\n\n");
+        $$ = $1;
+        yyerrok;
+    }
+    ;
+
+/* SINGLE PARAMETER — "int x" */
+param_item:
+    INT ID {
+        $$ = createParam($2);
+        free($2);
+    }
+    | error ID {
+        fprintf(stderr, "\n❌ Syntax Error at line %d:\n", yylineno);
+        fprintf(stderr, "   Missing type in parameter declaration\n");
+        fprintf(stderr, "   💡 Suggestion: Use 'int %s' instead of just '%s'\n\n", $2, $2);
+        $$ = createParam($2);
+        free($2);
+        yyerrok;
+    }
+    ;
+
+/* ================================================================
+ * END CLAUSE
+ * "end null;" = void return
+ * "end x;"    = return the value of variable x
+ * ================================================================ */
+
+end_clause:
+    END NULLTOK ';' {
+        /* Void return — function returns nothing */
+        $$ = createEndClause(NULL);
+    }
+    | END ID ';' {
+        /* Return a variable's value */
+        $$ = createEndClause($2);
+        free($2);
+    }
+    | END NULLTOK error {
+        fprintf(stderr, "\n❌ Syntax Error at line %d:\n", yylineno);
+        fprintf(stderr, "   Missing semicolon after 'end null'\n");
+        fprintf(stderr, "   💡 Suggestion: Use 'end null;'\n\n");
+        $$ = createEndClause(NULL);
+        yyerrok;
+    }
+    | END ID error {
+        fprintf(stderr, "\n❌ Syntax Error at line %d:\n", yylineno);
+        fprintf(stderr, "   Missing semicolon after end clause\n");
+        fprintf(stderr, "   💡 Suggestion: Use 'end %s;'\n\n", $2);
+        $$ = createEndClause($2);
+        free($2);
+        yyerrok;
+    }
+    | END error {
+        fprintf(stderr, "\n❌ Syntax Error at line %d:\n", yylineno);
+        fprintf(stderr, "   Invalid end clause\n");
+        fprintf(stderr, "   💡 Suggestion: Use 'end null;' or 'end <variable>;'\n\n");
+        $$ = NULL;
+        yyerrok;
+    }
+    ;
+
+/* ================================================================
+ * PROGRAM_START BLOCK
+ * The entry point — must be last, always ends with "end null;"
+ *
+ *   Program_Start()
+ *       statement1;
+ *       statement2;
+ *   end null;
+ * ================================================================ */
+
+program_start:
+    PROGRAM_START '(' ')' stmt_list end_clause {
+        /* Standard form with parentheses and statements */
+        $$ = createProgramStart($4, $5);
+    }
+    | PROGRAM_START '(' ')' end_clause {
+        /* Empty Program_Start body */
+        $$ = createProgramStart(NULL, $4);
+    }
+    | PROGRAM_START error {
+        fprintf(stderr, "\n❌ Syntax Error at line %d:\n", yylineno);
+        fprintf(stderr, "   Malformed Program_Start block\n");
+        fprintf(stderr, "   💡 Suggestion: Use 'Program_Start() ... end null;'\n\n");
+        $$ = NULL;
+        yyerrok;
+    }
+    ;
+
+/* ================================================================
+ * STATEMENT LIST
+ * One or more statements in sequence
+ * ================================================================ */
+
 stmt_list:
-    stmt { 
+    stmt {
         /* Base case: single statement */
-        $$ = $1;  /* Pass the statement up as-is */
+        $$ = $1;
     }
-    | stmt_list stmt { 
+    | stmt_list stmt {
         /* Recursive case: list followed by another statement */
-        $$ = createStmtList($1, $2);  /* Build linked list of statements */
+        $$ = createStmtList($1, $2);
     }
     ;
 
-/* STATEMENT TYPES - The three kinds of statements we support */
+/* STATEMENT TYPES */
 stmt:
-    decl        /* Variable declaration */
-    | assign    /* Assignment statement */
-    | print_stmt /* Print statement */
+    decl            /* Variable declaration:  int x;          */
+    | assign        /* Assignment:            x = expr;        */
+    | print_stmt    /* Print statement:       print(expr);     */
     ;
 
-/* ID LIST RULE - Comma-separated list of identifiers: "x" or "x, y, z" */
+/* ================================================================
+ * ID LIST
+ * Comma-separated identifiers used in declarations
+ * "x" or "x, y, z"
+ * ================================================================ */
+
 id_list:
     ID {
         /* Base case: single identifier */
         $$ = createIdList($1);
         free($1);
     }
-    // MODIFIED: Allows for multiple variables to be listed at once by making this statement recursive
     | id_list ',' ID {
-        /* Recursive case: extend list with another identifier */
+        /* Recursive case: extend list */
         $$ = appendIdList($1, $3);
         free($3);
     }
@@ -94,10 +298,13 @@ id_list:
     }
     ;
 
-/* DECLARATION RULE - "int x;" or "int x, y, z;" */
+/* ================================================================
+ * DECLARATION
+ * "int x;" or "int x, y, z;"
+ * ================================================================ */
+
 decl:
     INT id_list ';' {
-        /* Expand id_list into individual declaration nodes */
         $$ = createMultiDecl($2);
     }
     | INT id_list error {
@@ -116,17 +323,34 @@ decl:
     }
     ;
 
-/* ASSIGNMENT RULE - "x = expr;" */
+/* ================================================================
+ * ASSIGNMENT
+ * "x = expr;"      — plain expression
+ * "x = add(a, b);" — function call on the right-hand side
+ * ================================================================ */
+
 assign:
     ID '=' expr ';' {
-        /* Create assignment node with variable name and expression */
-        $$ = createAssign($1, $3);  /* $1 = ID, $3 = expr */
-        free($1);                   /* Free the identifier string */
+        $$ = createAssign($1, $3);
+        free($1);
+    }
+    | ID '=' func_call ';' {
+        /* Function call as RHS: z = add(x, y); */
+        $$ = createAssign($1, $3);
+        free($1);
     }
     | ID '=' expr error {
         fprintf(stderr, "\n❌ Syntax Error at line %d:\n", yylineno);
         fprintf(stderr, "   Missing semicolon after assignment\n");
         fprintf(stderr, "   💡 Suggestion: Add ';' after '%s = <expression>'\n\n", $1);
+        free($1);
+        $$ = NULL;
+        yyerrok;
+    }
+    | ID '=' func_call error {
+        fprintf(stderr, "\n❌ Syntax Error at line %d:\n", yylineno);
+        fprintf(stderr, "   Missing semicolon after function call assignment\n");
+        fprintf(stderr, "   💡 Suggestion: Add ';' after '%s = <func>(...)'\n\n", $1);
         free($1);
         $$ = NULL;
         yyerrok;
@@ -149,28 +373,96 @@ assign:
     }
     ;
 
-/* EXPRESSION RULES - Build expression trees */
-expr:
-    NUM { 
-        /* Literal number */
-        $$ = createNum($1);  /* Create leaf node with number value */
+/* ================================================================
+ * FUNCTION CALL
+ * "add(x, y)" or "foo()"
+ * Used as the RHS of an assignment: z = add(x, y);
+ * ================================================================ */
+
+func_call:
+    ID '(' arg_list ')' {
+        $$ = createFuncCall($1, $3);
+        free($1);
     }
-    | ID { 
-        /* Variable reference */
-        $$ = createVar($1);  /* Create leaf node with variable name */
-        free($1);            /* Free the identifier string */
+    | ID '(' ')' {
+        /* No arguments */
+        $$ = createFuncCall($1, NULL);
+        free($1);
     }
-    | expr '+' expr { 
-        /* Addition operation - builds binary tree */
-        $$ = createBinOp('+', $1, $3);  /* Left child, op, right child */
+    | ID '(' arg_list error {
+        fprintf(stderr, "\n❌ Syntax Error at line %d:\n", yylineno);
+        fprintf(stderr, "   Missing closing ')' in function call\n");
+        fprintf(stderr, "   💡 Suggestion: Add ')' after the argument list\n\n");
+        $$ = createFuncCall($1, $3);
+        free($1);
+        yyerrok;
+    }
+    | ID '(' error {
+        fprintf(stderr, "\n❌ Syntax Error at line %d:\n", yylineno);
+        fprintf(stderr, "   Invalid argument in function call\n");
+        fprintf(stderr, "   💡 Suggestion: Use 'funcName(x, y)' or 'funcName()'\n\n");
+        $$ = NULL;
+        yyerrok;
     }
     ;
 
-/* PRINT STATEMENT - "print(expr);" */
+/* ================================================================
+ * ARGUMENT LIST
+ * Expressions passed to a function call
+ * "x" or "x, y, z" or "1 + 2, x"
+ * ================================================================ */
+
+arg_list:
+    expr {
+        /* Single argument */
+        $$ = createArgList($1);
+    }
+    | arg_list ',' expr {
+        /* Multiple arguments */
+        $$ = appendArgList($1, $3);
+    }
+    | arg_list ',' error {
+        fprintf(stderr, "\n❌ Syntax Error at line %d:\n", yylineno);
+        fprintf(stderr, "   Expected expression after comma in argument list\n");
+        fprintf(stderr, "   💡 Suggestion: Provide a value or variable after ','\n\n");
+        $$ = $1;
+        yyerrok;
+    }
+    ;
+
+/* ================================================================
+ * EXPRESSIONS
+ * Builds expression trees for arithmetic and variables
+ * ================================================================ */
+
+expr:
+    NUM {
+        /* Integer literal */
+        $$ = createNum($1);
+    }
+    | ID {
+        /* Variable reference */
+        $$ = createVar($1);
+        free($1);
+    }
+    | expr '+' expr {
+        /* Binary addition — left-associative via %left above */
+        $$ = createBinOp('+', $1, $3);
+    }
+    | '(' expr ')' {
+        /* Parenthesized expression */
+        $$ = $2;
+    }
+    ;
+
+/* ================================================================
+ * PRINT STATEMENT
+ * "print(expr);"
+ * ================================================================ */
+
 print_stmt:
     PRINT '(' expr ')' ';' {
-        /* Create print node with expression to print */
-        $$ = createPrint($3);  /* $3 is the expression inside parens */
+        $$ = createPrint($3);
     }
     | PRINT '(' expr ')' error {
         fprintf(stderr, "\n❌ Syntax Error at line %d:\n", yylineno);
@@ -204,7 +496,7 @@ print_stmt:
 
 %%
 
-/* ERROR HANDLING - Called by Bison when syntax error detected */
+/* ERROR HANDLING - Called by Bison when a syntax error is detected */
 void yyerror(const char* s) {
     fprintf(stderr, "\n❌ Syntax Error at line %d:\n", yylineno);
     fprintf(stderr, "   %s", s);
@@ -219,5 +511,7 @@ void yyerror(const char* s) {
     fprintf(stderr, "      • Check for missing semicolons\n");
     fprintf(stderr, "      • Verify parentheses and brackets are balanced\n");
     fprintf(stderr, "      • Ensure variables are declared before use\n");
-    fprintf(stderr, "      • Check for typos in keywords (int, print)\n\n");
+    fprintf(stderr, "      • Check for typos in keywords (int, print, func, end, null)\n");
+    fprintf(stderr, "      • Global declarations must come before func declarations\n");
+    fprintf(stderr, "      • Program_Start() must be last\n\n");
 }

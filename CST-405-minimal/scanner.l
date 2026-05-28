@@ -5,53 +5,41 @@
  */
 #include <stdio.h>
 #include <stdlib.h>
-#include "parser.tab.h"  /* Token definitions from Bison */
+#include "parser.tab.h"
 
-/* Global flag to enable token display */
 extern int displayTokens;
 
-/* Column tracking - incremented per character, reset on newline */
 int yycolumn = 1;
 
-/* Update column position after every token is matched */
 #define YY_USER_ACTION \
     yycolumn += yyleng;
 %}
 
-/* Flex options to suppress warnings for unused functions */
 %option nounput
 %option noinput
 %option yylineno
 
-/* Exclusive start condition for multi-line comments */
 %x COMMENT
 
 %%
 
 "//".*          {
-    /* Single-line comment - ignore everything from // to end of line */
     if (displayTokens) printf("  (ignoring single-line comment)\n");
 }
 
 "/*"            {
-    /* Start of multi-line comment - switch to COMMENT state */
     if (displayTokens) printf("  (start multi-line comment)\n");
     BEGIN(COMMENT);
 }
 
 <COMMENT>"*/"   {
-    /* End of multi-line comment - return to normal scanning */
     if (displayTokens) printf("  (end multi-line comment)\n");
     BEGIN(INITIAL);
 }
 
-<COMMENT>\n     {
-    /* Newline inside comment - ignore but continue in COMMENT state */
-}
+<COMMENT>\n     { }
 
-<COMMENT>.      {
-    /* Any other character inside comment - ignore */
-}
+<COMMENT>.      { }
 
 "int"           {
     if (displayTokens) printf("  TOKEN: INT keyword\n");
@@ -61,6 +49,26 @@ int yycolumn = 1;
 "print"         {
     if (displayTokens) printf("  TOKEN: PRINT keyword\n");
     return PRINT;
+}
+
+"func"          {
+    if (displayTokens) printf("  TOKEN: FUNC keyword\n");
+    return FUNC;
+}
+
+"Program_Start" {
+    if (displayTokens) printf("  TOKEN: PROGRAM_START keyword\n");
+    return PROGRAM_START;
+}
+
+"end"           {
+    if (displayTokens) printf("  TOKEN: END keyword\n");
+    return END;
+}
+
+"null"          {
+    if (displayTokens) printf("  TOKEN: NULLTOK keyword\n");
+    return NULLTOK;
 }
 
 [a-zA-Z_][a-zA-Z0-9_]* {
@@ -75,35 +83,12 @@ int yycolumn = 1;
     return NUM;
 }
 
-"+"             {
-    if (displayTokens) printf("  TOKEN: '+'\n");
-    return '+';
-}
-
-"="             {
-    if (displayTokens) printf("  TOKEN: '='\n");
-    return '=';
-}
-
-";"             {
-    if (displayTokens) printf("  TOKEN: ';'\n");
-    return ';';
-}
-
-"("             {
-    if (displayTokens) printf("  TOKEN: '('\n");
-    return '(';
-}
-
-")"             {
-    if (displayTokens) printf("  TOKEN: ')'\n");
-    return ')';
-}
-
-","             {
-    if (displayTokens) printf("  TOKEN: ','\n");
-    return ',';
-}
+"+"             { if (displayTokens) printf("  TOKEN: '+'\n");  return '+'; }
+"="             { if (displayTokens) printf("  TOKEN: '='\n");  return '='; }
+";"             { if (displayTokens) printf("  TOKEN: ';'\n");  return ';'; }
+"("             { if (displayTokens) printf("  TOKEN: '('\n");  return '('; }
+")"             { if (displayTokens) printf("  TOKEN: ')'\n");  return ')'; }
+","             { if (displayTokens) printf("  TOKEN: ','\n");  return ','; }
 
 [ \t]           { }
 \n              { yycolumn = 1; }
@@ -126,7 +111,6 @@ int yycolumn = 1;
 
 %%
 
-/* Required by Flex - signals end of input */
 int yywrap() {
-    return 1;  /* 1 means no more input files */
+    return 1;
 }
