@@ -307,6 +307,10 @@ decl:
     INT id_list ';' {
         $$ = createMultiDecl($2);
     }
+    | INT ID '[' NUM ']' ';' {         
+        $$ = createArrayDecl($2, $4);
+        free($2);
+    }
     | INT id_list error {
         fprintf(stderr, "\n❌ Syntax Error at line %d:\n", yylineno);
         fprintf(stderr, "   Missing semicolon after variable declaration\n");
@@ -338,6 +342,13 @@ assign:
         /* Function call as RHS: z = add(x, y); */
         $$ = createAssign($1, $3);
         free($1);
+    }
+    | ID '[' expr ']' '=' expr ';' {
+    ASTNode* lhs = createArrayIndex($1, $3);
+    ASTNode* node = createAssign(NULL, $6);
+    node->data.assign.arrayLHS = lhs;
+    $$ = node;
+    free($1);
     }
     | ID '=' expr error {
         fprintf(stderr, "\n❌ Syntax Error at line %d:\n", yylineno);
@@ -452,6 +463,10 @@ expr:
     | '(' expr ')' {
         /* Parenthesized expression */
         $$ = $2;
+    }
+    | ID '[' expr ']' {   
+        $$ = createArrayIndex($1, $3);
+        free($1); 
     }
     ;
 

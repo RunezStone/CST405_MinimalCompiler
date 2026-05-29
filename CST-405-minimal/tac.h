@@ -39,7 +39,9 @@ typedef enum {
     TAC_PARAM,      /* formal parameter:   PARAM      name     */
     TAC_ARG,        /* call argument:      ARG        value    */
     TAC_CALL,       /* call:               result = CALL arg1, arg2 (count) */
-    TAC_RETURN      /* return value:       RETURN     value    */
+    TAC_RETURN,      /* return value:       RETURN     value    */
+    TAC_ARRAY_LOAD,    /* ← ADD: t0 = arr[i]  */
+    TAC_ARRAY_STORE    /* ← ADD: arr[i] = t0  */
 } TACOp;
 
 /* ─────────────────────────────────────────────────────────────────────────

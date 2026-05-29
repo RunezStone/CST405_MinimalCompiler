@@ -89,6 +89,8 @@ int yycolumn = 1;
 "("             { if (displayTokens) printf("  TOKEN: '('\n");  return '('; }
 ")"             { if (displayTokens) printf("  TOKEN: ')'\n");  return ')'; }
 ","             { if (displayTokens) printf("  TOKEN: ','\n");  return ','; }
+"["  { if (displayTokens) printf("  TOKEN: '['\n");  return '['; }
+"]"  { if (displayTokens) printf("  TOKEN: ']'\n");  return ']'; }
 
 [ \t]           { }
 \n              { yycolumn = 1; }

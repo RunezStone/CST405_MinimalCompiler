@@ -340,6 +340,15 @@ char* generateTACExpr(ASTNode* node) {
         case NODE_FUNC_CALL:
             return generateTACFuncCall(node);
 
+        case NODE_ARRAY_INDEX: {          
+            char* index = generateTACExpr(node->data.array_index.index);
+            char* temp  = newTemp();
+            appendTAC(createTAC(TAC_ARRAY_LOAD,
+                                node->data.array_index.name,
+                                index, temp));
+            return temp;
+        }
+
         default:
             return NULL;
     }
@@ -482,20 +491,28 @@ void generateTAC(ASTNode* node) {
                                 node->data.decl.name));
             break;
 
-        case NODE_ASSIGN: {
-            /* ── UPDATED: detect func call on RHS ── */
-            char* expr;
-            if (node->data.assign.value &&
-                node->data.assign.value->type == NODE_FUNC_CALL) {
-                expr = generateTACFuncCall(node->data.assign.value);
-            } else {
-                expr = generateTACExpr(node->data.assign.value);
-            }
-            appendTAC(createTAC(TAC_ASSIGN, expr, NULL,
-                                node->data.assign.var));
-            break;
+case NODE_ASSIGN: {
+    if (node->data.assign.arrayLHS) {               /* ← ADD THIS BRANCH */
+        char* index = generateTACExpr(
+            node->data.assign.arrayLHS->data.array_index.index);
+        char* val   = generateTACExpr(node->data.assign.value);
+        appendTAC(createTAC(TAC_ARRAY_STORE,
+                            node->data.assign.arrayLHS->data.array_index.name,
+                            index, val));
+    } else {
+        /* existing scalar assignment logic — unchanged */
+        char* expr;
+        if (node->data.assign.value &&
+            node->data.assign.value->type == NODE_FUNC_CALL) {
+            expr = generateTACFuncCall(node->data.assign.value);
+        } else {
+            expr = generateTACExpr(node->data.assign.value);
         }
-
+        appendTAC(createTAC(TAC_ASSIGN, expr, NULL,
+                            node->data.assign.var));
+    }
+    break;
+}
         case NODE_PRINT: {
             char* expr = generateTACExpr(node->data.expr);
             appendTAC(createTAC(TAC_PRINT, expr, NULL, NULL));
@@ -561,6 +578,14 @@ static void printOneInstr(FILE* out, TACInstr* curr, int lineNum) {
         case TAC_RETURN:
             fprintf(out, "RETURN %s\n", curr->result);
             break;
+        case TAC_ARRAY_LOAD:                              
+            fprintf(out, "%s = %s[%s]\n",
+            curr->result, curr->arg1, curr->arg2);
+        break;
+        case TAC_ARRAY_STORE:                             
+            fprintf(out, "%s[%s] = %s\n",
+            curr->arg1, curr->arg2, curr->result);
+        break;
         default:
             break;
     }
@@ -705,6 +730,20 @@ int optimizeTACPass(VarValue* values, int* valueCount) {
             case TAC_RETURN:
                 newInstr = createTAC(TAC_RETURN, NULL, NULL, curr->result);
                 break;
+            case TAC_ARRAY_LOAD:                              /* ← ADD THIS */
+            /* Don't propagate through array accesses —
+            * the index may alias a modified variable   */
+                newInstr = createTAC(TAC_ARRAY_LOAD,
+                         curr->arg1, curr->arg2, curr->result);
+                break;
+
+            case TAC_ARRAY_STORE:                             /* ← ADD THIS */
+            /* Flush the propagation table — a store may change
+            * a value that a live variable was propagated from */
+                 *valueCount = 0;
+                newInstr = createTAC(TAC_ARRAY_STORE,
+                         curr->arg1, curr->arg2, curr->result);
+                break;
 
             default:
                 break;
@@ -751,7 +790,8 @@ void eliminateDeadCode() {
             curr->op == TAC_PARAM      ||
             curr->op == TAC_ARG        ||
             curr->op == TAC_CALL       ||
-            curr->op == TAC_RETURN) {
+            curr->op == TAC_RETURN     ||
+            curr->op == TAC_ARRAY_STORE) {   /* ← ADD THIS */
             isUsed = 1;
         } else if (curr->result) {
             for (int i = 0; i < usedCount; i++) {

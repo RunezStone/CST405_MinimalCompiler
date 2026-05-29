@@ -91,6 +91,25 @@ static void genExpr(ASTNode* node) {
             fprintf(output, "    move $t%d, $v0\n", getNextTemp());
             break;
 
+        case NODE_ARRAY_INDEX: {             /* ← ADD THIS */
+    /* Evaluate the index expression */
+    genExpr(node->data.array_index.index);
+    int indexReg = tempReg - 1;
+
+    /* Compute byte offset: index * 4 */
+    int addrReg = getNextTemp();
+    fprintf(output, "    sll  $t%d, $t%d, 2\n", addrReg, indexReg);
+
+    /* Load from array base + offset */
+    int destReg = getNextTemp();
+    fprintf(output, "    lw   $t%d, %s($t%d)   # %s[i]\n",
+            destReg,
+            node->data.array_index.name,
+            addrReg,
+            node->data.array_index.name);
+    break;
+}
+
         default:
             break;
     }
@@ -233,8 +252,44 @@ void genStmt(ASTNode* node) {
                     node->data.decl.name, offset);
             break;
         }
+        case NODE_ARRAY_DECL: {              /* ← ADD THIS */
+    /* Global arrays live in .data — nothing to do on the stack.
+     * Local arrays get stack space reserved here.               */
+    if (!node->data.array_decl.isParam) {
+        int bytes = node->data.array_decl.size * 4;
+        int offset = addVar(node->data.array_decl.name, "int");
+        fprintf(output, "    # Array %s[%d] at offset %d (%d bytes)\n",
+                node->data.array_decl.name,
+                node->data.array_decl.size,
+                offset, bytes);
+    }
+    break;
+}
 
         case NODE_ASSIGN: {
+            /* ── Array store: arr[i] = expr ── */        /* ← ADD THIS BLOCK */
+    if (node->data.assign.arrayLHS) {
+        /* Evaluate the index expression */
+        genExpr(node->data.assign.arrayLHS->data.array_index.index);
+        int indexReg = tempReg - 1;
+
+        /* Evaluate the RHS value */
+        genExpr(node->data.assign.value);
+        int valReg = tempReg - 1;
+
+        /* Compute byte offset: index * 4 */
+        int addrReg = getNextTemp();
+        fprintf(output, "    sll  $t%d, $t%d, 2\n", addrReg, indexReg);
+
+        /* Store to array base + offset */
+        fprintf(output, "    sw   $t%d, %s($t%d)   # %s[i] = ...\n",
+                valReg,
+                node->data.assign.arrayLHS->data.array_index.name,
+                addrReg,
+                node->data.assign.arrayLHS->data.array_index.name);
+        tempReg = 0;
+        break;
+    }
             /* ── NEW: handle func call on RHS ── */
             if (node->data.assign.value &&
                 node->data.assign.value->type == NODE_FUNC_CALL) {
@@ -321,7 +376,23 @@ void generateMIPS(ASTNode* root, const char* filename) {
     /* ── MIPS file header ── */
     fprintf(output, "# Generated MIPS Assembly\n");
     fprintf(output, "# ─────────────────────────────────────\n\n");
-    fprintf(output, ".data\n\n");
+    fprintf(output, ".data\n");
+
+/* Emit static storage for global arrays */
+if (root && root->type == NODE_PROGRAM) {
+    ASTNode* g = root->data.program.globals;
+    while (g) {
+        ASTNode* decl = (g->type == NODE_STMT_LIST)
+                        ? g->data.stmtlist.stmt : g;
+        if (decl && decl->type == NODE_ARRAY_DECL) {
+            fprintf(output, "%s: .space %d\n",
+                    decl->data.array_decl.name,
+                    decl->data.array_decl.size * 4);
+        }
+        g = (g->type == NODE_STMT_LIST) ? g->data.stmtlist.next : NULL;
+    }
+}
+fprintf(output, "\n");
     fprintf(output, ".text\n");
     fprintf(output, ".globl main\n");
 

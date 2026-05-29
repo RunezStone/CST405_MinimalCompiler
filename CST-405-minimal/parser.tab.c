@@ -138,25 +138,27 @@ enum yysymbol_kind_t
   YYSYMBOL_13_ = 13,                       /* ')'  */
   YYSYMBOL_14_ = 14,                       /* ','  */
   YYSYMBOL_15_ = 15,                       /* ';'  */
-  YYSYMBOL_16_ = 16,                       /* '='  */
-  YYSYMBOL_YYACCEPT = 17,                  /* $accept  */
-  YYSYMBOL_program = 18,                   /* program  */
-  YYSYMBOL_global_list = 19,               /* global_list  */
-  YYSYMBOL_func_decl_list = 20,            /* func_decl_list  */
-  YYSYMBOL_func_decl = 21,                 /* func_decl  */
-  YYSYMBOL_param_list = 22,                /* param_list  */
-  YYSYMBOL_param_item = 23,                /* param_item  */
-  YYSYMBOL_end_clause = 24,                /* end_clause  */
-  YYSYMBOL_program_start = 25,             /* program_start  */
-  YYSYMBOL_stmt_list = 26,                 /* stmt_list  */
-  YYSYMBOL_stmt = 27,                      /* stmt  */
-  YYSYMBOL_id_list = 28,                   /* id_list  */
-  YYSYMBOL_decl = 29,                      /* decl  */
-  YYSYMBOL_assign = 30,                    /* assign  */
-  YYSYMBOL_func_call = 31,                 /* func_call  */
-  YYSYMBOL_arg_list = 32,                  /* arg_list  */
-  YYSYMBOL_expr = 33,                      /* expr  */
-  YYSYMBOL_print_stmt = 34                 /* print_stmt  */
+  YYSYMBOL_16_ = 16,                       /* '['  */
+  YYSYMBOL_17_ = 17,                       /* ']'  */
+  YYSYMBOL_18_ = 18,                       /* '='  */
+  YYSYMBOL_YYACCEPT = 19,                  /* $accept  */
+  YYSYMBOL_program = 20,                   /* program  */
+  YYSYMBOL_global_list = 21,               /* global_list  */
+  YYSYMBOL_func_decl_list = 22,            /* func_decl_list  */
+  YYSYMBOL_func_decl = 23,                 /* func_decl  */
+  YYSYMBOL_param_list = 24,                /* param_list  */
+  YYSYMBOL_param_item = 25,                /* param_item  */
+  YYSYMBOL_end_clause = 26,                /* end_clause  */
+  YYSYMBOL_program_start = 27,             /* program_start  */
+  YYSYMBOL_stmt_list = 28,                 /* stmt_list  */
+  YYSYMBOL_stmt = 29,                      /* stmt  */
+  YYSYMBOL_id_list = 30,                   /* id_list  */
+  YYSYMBOL_decl = 31,                      /* decl  */
+  YYSYMBOL_assign = 32,                    /* assign  */
+  YYSYMBOL_func_call = 33,                 /* func_call  */
+  YYSYMBOL_arg_list = 34,                  /* arg_list  */
+  YYSYMBOL_expr = 35,                      /* expr  */
+  YYSYMBOL_print_stmt = 36                 /* print_stmt  */
 };
 typedef enum yysymbol_kind_t yysymbol_kind_t;
 
@@ -484,16 +486,16 @@ union yyalloc
 /* YYFINAL -- State number of the termination state.  */
 #define YYFINAL  3
 /* YYLAST -- Last index in YYTABLE.  */
-#define YYLAST   98
+#define YYLAST   115
 
 /* YYNTOKENS -- Number of terminals.  */
-#define YYNTOKENS  17
+#define YYNTOKENS  19
 /* YYNNTS -- Number of nonterminals.  */
 #define YYNNTS  18
 /* YYNRULES -- Number of rules.  */
-#define YYNRULES  58
+#define YYNRULES  61
 /* YYNSTATES -- Number of states.  */
-#define YYNSTATES  97
+#define YYNSTATES  110
 
 /* YYMAXUTOK -- Last valid token kind.  */
 #define YYMAXUTOK   265
@@ -516,10 +518,10 @@ static const yytype_int8 yytranslate[] =
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
       12,    13,     2,    11,    14,     2,     2,     2,     2,     2,
        2,     2,     2,     2,     2,     2,     2,     2,     2,    15,
-       2,    16,     2,     2,     2,     2,     2,     2,     2,     2,
+       2,    18,     2,     2,     2,     2,     2,     2,     2,     2,
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
-       2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
+       2,    16,     2,    17,     2,     2,     2,     2,     2,     2,
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
@@ -546,9 +548,10 @@ static const yytype_int16 yyrline[] =
        0,    68,    68,    72,    84,    87,    98,   102,   115,   120,
      125,   130,   135,   150,   155,   159,   170,   174,   191,   195,
      200,   207,   215,   235,   239,   243,   258,   262,   270,   271,
-     272,   282,   287,   292,   307,   310,   317,   333,   337,   342,
-     350,   358,   366,   383,   387,   392,   400,   416,   420,   424,
-     439,   443,   448,   452,   464,   467,   474,   481,   488
+     272,   282,   287,   292,   307,   310,   314,   321,   337,   341,
+     346,   353,   361,   369,   377,   394,   398,   403,   411,   427,
+     431,   435,   450,   454,   459,   463,   467,   479,   482,   489,
+     496,   503
 };
 #endif
 
@@ -566,7 +569,7 @@ static const char *const yytname[] =
 {
   "\"end of file\"", "error", "\"invalid token\"", "NUM", "ID", "INT",
   "PRINT", "FUNC", "PROGRAM_START", "END", "NULLTOK", "'+'", "'('", "')'",
-  "','", "';'", "'='", "$accept", "program", "global_list",
+  "','", "';'", "'['", "']'", "'='", "$accept", "program", "global_list",
   "func_decl_list", "func_decl", "param_list", "param_item", "end_clause",
   "program_start", "stmt_list", "stmt", "id_list", "decl", "assign",
   "func_call", "arg_list", "expr", "print_stmt", YY_NULLPTR
@@ -579,7 +582,7 @@ yysymbol_name (yysymbol_kind_t yysymbol)
 }
 #endif
 
-#define YYPACT_NINF (-51)
+#define YYPACT_NINF (-53)
 
 #define yypact_value_is_default(Yyn) \
   ((Yyn) == YYPACT_NINF)
@@ -593,16 +596,17 @@ yysymbol_name (yysymbol_kind_t yysymbol)
    STATE-NUM.  */
 static const yytype_int8 yypact[] =
 {
-     -51,    11,    73,   -51,    81,    82,    55,    -2,   -51,   -51,
-     -51,   -51,   -51,     6,   -51,    49,   -51,    64,   -51,   -51,
-     -51,    83,   -51,    36,    70,   -51,   -51,    85,    89,    70,
-      78,   -51,     0,    58,    59,   -51,    70,   -51,   -51,   -51,
-     -51,   -51,   -51,   -51,    70,    70,    67,   -51,    31,   -51,
-      50,   -51,     7,     9,   -51,   -51,   -51,   -51,    70,    85,
-     -51,   -51,   -51,    84,    61,    14,    12,   -51,   -51,    39,
-     -51,   -51,   -51,   -51,   -51,    35,    77,   -51,   -51,   -51,
-      61,   -51,   -51,    27,   -51,   -51,    32,    60,   -51,   -51,
-     -51,   -51,   -51,   -51,    54,   -51,    60
+     -53,     8,    91,   -53,    37,    62,     3,    94,   -53,   -53,
+     -53,   -53,     1,    10,   -53,    72,   -53,    68,   -53,   -53,
+     102,   -53,    96,   -53,    39,    83,    76,   -53,   -53,   103,
+     104,    83,    90,   -53,     5,    50,    35,   -53,    83,   -53,
+     -53,   -53,   -53,    95,   -53,   -53,   -53,    83,    83,    77,
+     -53,    73,    57,   -53,    67,   -53,    12,    27,   -53,   -53,
+     -53,   -53,   -53,    83,   103,   -53,   -53,    93,    73,    56,
+     -53,    78,    31,    11,   -53,    46,   -53,   -53,   -53,   -53,
+     -53,    73,    -4,    73,    88,    52,   -53,   -53,   -53,   -53,
+     -53,    33,    69,   -53,   -53,    73,   -53,   -53,    36,   100,
+     -53,   -53,   -53,    80,   -53,   -53,    71,   -53,   -53,   100
 };
 
 /* YYDEFACT[STATE-NUM] -- Default reduction number in state STATE-NUM.
@@ -611,29 +615,30 @@ static const yytype_int8 yypact[] =
 static const yytype_int8 yydefact[] =
 {
        4,     0,     0,     1,     0,     0,     0,     0,     6,     3,
-       5,    36,    31,     0,    12,     0,    25,     0,     7,     2,
-      35,     0,    34,     0,     0,    33,    32,     0,     0,     0,
-       0,    13,     0,     0,     0,    24,     0,    26,    28,    29,
-      30,    17,    16,    11,     0,     0,     0,    42,     0,    58,
-       0,    22,     0,     0,    23,    27,     9,    10,     0,    15,
-      14,    41,    50,    51,     0,     0,     0,    57,    51,     0,
-      21,    19,    20,    18,     8,     0,     0,    40,    38,    39,
-       0,    37,    56,     0,    46,    44,     0,    47,    53,    52,
-      55,    54,    45,    43,     0,    49,    48
+       5,    37,    31,     0,    12,     0,    25,     0,     7,     2,
+       0,    36,     0,    34,     0,     0,     0,    33,    32,     0,
+       0,     0,     0,    13,     0,     0,     0,    24,     0,    26,
+      28,    29,    30,     0,    17,    16,    11,     0,     0,     0,
+      44,     0,     0,    61,     0,    22,     0,     0,    23,    27,
+      35,     9,    10,     0,    15,    14,    52,    53,     0,     0,
+      43,    53,     0,     0,    60,     0,    21,    19,    20,    18,
+       8,     0,     0,     0,     0,     0,    42,    39,    41,    38,
+      59,     0,     0,    55,    54,     0,    48,    46,     0,    49,
+      58,    57,    56,     0,    47,    45,     0,    40,    51,    50
 };
 
 /* YYPGOTO[NTERM-NUM].  */
 static const yytype_int8 yypgoto[] =
 {
-     -51,   -51,   -51,   -51,    87,   -51,    51,   -27,    88,   -26,
-     -32,   -51,    96,   -51,   -51,   -51,   -50,   -51
+     -53,   -53,   -53,   -53,   105,   -53,    64,   -28,   107,   -30,
+     -33,   -53,   113,   -53,   -53,   -53,   -52,   -53
 };
 
 /* YYDEFGOTO[NTERM-NUM].  */
 static const yytype_int8 yydefgoto[] =
 {
-       0,     1,     2,     7,     8,    30,    31,    35,     9,    36,
-      37,    13,    38,    39,    65,    86,    66,    40
+       0,     1,     2,     7,     8,    32,    33,    37,     9,    38,
+      39,    13,    40,    41,    72,    98,    69,    42
 };
 
 /* YYTABLE[YYPACT[STATE-NUM]] -- What to do in state STATE-NUM.  If
@@ -641,57 +646,63 @@ static const yytype_int8 yydefgoto[] =
    number is the opposite.  If YYTABLE_NINF, syntax error.  */
 static const yytype_int8 yytable[] =
 {
-      69,    47,    43,    44,    55,     5,     6,    20,    70,    54,
-      72,     3,    55,    79,    76,    77,    48,    56,    57,    58,
-      21,    22,    71,    80,    73,    87,    55,    81,    90,    78,
-      89,    74,    61,    92,    62,    63,    84,    27,    62,    68,
-      82,    28,    91,    64,    96,    93,    94,    64,    85,    29,
-      80,    67,    83,    62,    68,    95,    16,    62,    68,    49,
-      51,    23,    64,    52,    62,    68,    64,    17,    59,    53,
-      50,    80,    28,    64,    32,     4,    33,    24,     4,    34,
-       5,     6,    11,    14,    25,    12,    15,    26,    80,    41,
-      88,    45,    46,    42,    18,    19,    75,    60,    10
+      73,    47,    75,    46,    16,    59,    50,    83,     3,    93,
+      58,    21,    88,    76,    59,    17,    82,    20,    63,    61,
+      62,    51,    83,    52,    22,    23,    89,    77,    78,    92,
+      59,    94,    86,    99,   100,    80,    55,   104,    11,    56,
+      29,    12,    79,   103,    30,    57,    87,    90,   101,   105,
+     106,    53,    31,    96,   109,    66,    67,    83,    70,    91,
+      66,    71,    54,    14,    68,    97,    15,    83,    74,    68,
+      66,    67,   108,    84,    66,    67,    66,    67,    64,    68,
+      83,    25,    30,    68,    24,    68,   102,    34,     4,    35,
+      85,    83,    36,    43,    81,   107,     4,    27,     5,     6,
+      28,     5,     6,    48,    49,    26,    95,    44,    45,    81,
+      60,    83,    18,    65,    19,    10
 };
 
 static const yytype_int8 yycheck[] =
 {
-      50,     1,    29,    29,    36,     7,     8,     1,     1,    36,
-       1,     0,    44,     1,    64,     1,    16,    44,    45,    45,
-      14,    15,    15,    11,    15,    75,    58,    15,     1,    15,
-      80,    58,     1,     1,     3,     4,     1,     1,     3,     4,
-       1,     5,    15,    12,    94,    13,    14,    12,    13,    13,
-      11,     1,    13,     3,     4,     1,     1,     3,     4,     1,
-       1,    12,    12,     4,     3,     4,    12,    12,     1,    10,
-      12,    11,     5,    12,     4,     5,     6,    13,     5,     9,
-       7,     8,     1,     1,     1,     4,     4,     4,    11,     4,
-      13,    13,    14,     4,     7,     7,    12,    46,     2
+      52,    31,    54,    31,     1,    38,     1,    11,     0,    13,
+      38,     1,     1,     1,    47,    12,    68,    16,    48,    47,
+      48,    16,    11,    18,    14,    15,    15,    15,     1,    81,
+      63,    83,     1,    85,     1,    63,     1,     1,     1,     4,
+       1,     4,    15,    95,     5,    10,    15,     1,    15,    13,
+      14,     1,    13,     1,   106,     3,     4,    11,     1,    13,
+       3,     4,    12,     1,    12,    13,     4,    11,     1,    12,
+       3,     4,     1,    17,     3,     4,     3,     4,     1,    12,
+      11,    13,     5,    12,    12,    12,    17,     4,     5,     6,
+      12,    11,     9,    17,    16,    15,     5,     1,     7,     8,
+       4,     7,     8,    13,    14,     3,    18,     4,     4,    16,
+      15,    11,     7,    49,     7,     2
 };
 
 /* YYSTOS[STATE-NUM] -- The symbol kind of the accessing symbol of
    state STATE-NUM.  */
 static const yytype_int8 yystos[] =
 {
-       0,    18,    19,     0,     5,     7,     8,    20,    21,    25,
-      29,     1,     4,    28,     1,     4,     1,    12,    21,    25,
-       1,    14,    15,    12,    13,     1,     4,     1,     5,    13,
-      22,    23,     4,     6,     9,    24,    26,    27,    29,    30,
-      34,     4,     4,    24,    26,    13,    14,     1,    16,     1,
-      12,     1,     4,    10,    24,    27,    24,    24,    26,     1,
-      23,     1,     3,     4,    12,    31,    33,     1,     4,    33,
-       1,    15,     1,    15,    24,    12,    33,     1,    15,     1,
-      11,    15,     1,    13,     1,    13,    32,    33,    13,    33,
-       1,    15,     1,    13,    14,     1,    33
+       0,    20,    21,     0,     5,     7,     8,    22,    23,    27,
+      31,     1,     4,    30,     1,     4,     1,    12,    23,    27,
+      16,     1,    14,    15,    12,    13,     3,     1,     4,     1,
+       5,    13,    24,    25,     4,     6,     9,    26,    28,    29,
+      31,    32,    36,    17,     4,     4,    26,    28,    13,    14,
+       1,    16,    18,     1,    12,     1,     4,    10,    26,    29,
+      15,    26,    26,    28,     1,    25,     3,     4,    12,    35,
+       1,     4,    33,    35,     1,    35,     1,    15,     1,    15,
+      26,    16,    35,    11,    17,    12,     1,    15,     1,    15,
+       1,    13,    35,    13,    35,    18,     1,    13,    34,    35,
+       1,    15,    17,    35,     1,    13,    14,    15,     1,    35
 };
 
 /* YYR1[RULE-NUM] -- Symbol kind of the left-hand side of rule RULE-NUM.  */
 static const yytype_int8 yyr1[] =
 {
-       0,    17,    18,    18,    19,    19,    20,    20,    21,    21,
-      21,    21,    21,    22,    22,    22,    23,    23,    24,    24,
-      24,    24,    24,    25,    25,    25,    26,    26,    27,    27,
-      27,    28,    28,    28,    29,    29,    29,    30,    30,    30,
-      30,    30,    30,    31,    31,    31,    31,    32,    32,    32,
-      33,    33,    33,    33,    34,    34,    34,    34,    34
+       0,    19,    20,    20,    21,    21,    22,    22,    23,    23,
+      23,    23,    23,    24,    24,    24,    25,    25,    26,    26,
+      26,    26,    26,    27,    27,    27,    28,    28,    29,    29,
+      29,    30,    30,    30,    31,    31,    31,    31,    32,    32,
+      32,    32,    32,    32,    32,    33,    33,    33,    33,    34,
+      34,    34,    35,    35,    35,    35,    35,    36,    36,    36,
+      36,    36
 };
 
 /* YYR2[RULE-NUM] -- Number of symbols on the right-hand side of rule RULE-NUM.  */
@@ -700,9 +711,10 @@ static const yytype_int8 yyr2[] =
        0,     2,     3,     2,     0,     2,     1,     2,     7,     6,
        6,     5,     2,     1,     3,     3,     2,     2,     3,     3,
        3,     3,     2,     5,     4,     2,     1,     2,     1,     1,
-       1,     1,     3,     3,     3,     3,     2,     4,     4,     4,
-       4,     3,     2,     4,     3,     4,     3,     1,     3,     3,
-       1,     1,     3,     3,     5,     5,     4,     3,     2
+       1,     1,     3,     3,     3,     6,     3,     2,     4,     4,
+       7,     4,     4,     3,     2,     4,     3,     4,     3,     1,
+       3,     3,     1,     1,     3,     3,     4,     5,     5,     4,
+       3,     2
 };
 
 
@@ -1171,7 +1183,7 @@ yyreduce:
         /* Full program: globals, functions, then entry point */
         root = createProgram((yyvsp[-2].node), (yyvsp[-1].node), (yyvsp[0].node));
     }
-#line 1175 "parser.tab.c"
+#line 1187 "parser.tab.c"
     break;
 
   case 3: /* program: global_list program_start  */
@@ -1180,7 +1192,7 @@ yyreduce:
         /* No functions — just globals then Program_Start */
         root = createProgram((yyvsp[-1].node), NULL, (yyvsp[0].node));
     }
-#line 1184 "parser.tab.c"
+#line 1196 "parser.tab.c"
     break;
 
   case 4: /* global_list: %empty  */
@@ -1188,7 +1200,7 @@ yyreduce:
                 {
         (yyval.node) = NULL;
     }
-#line 1192 "parser.tab.c"
+#line 1204 "parser.tab.c"
     break;
 
   case 5: /* global_list: global_list decl  */
@@ -1196,7 +1208,7 @@ yyreduce:
                        {
         (yyval.node) = createStmtList((yyvsp[-1].node), (yyvsp[0].node));
     }
-#line 1200 "parser.tab.c"
+#line 1212 "parser.tab.c"
     break;
 
   case 6: /* func_decl_list: func_decl  */
@@ -1205,7 +1217,7 @@ yyreduce:
         /* Base case: single function */
         (yyval.node) = (yyvsp[0].node);
     }
-#line 1209 "parser.tab.c"
+#line 1221 "parser.tab.c"
     break;
 
   case 7: /* func_decl_list: func_decl_list func_decl  */
@@ -1214,7 +1226,7 @@ yyreduce:
         /* Multiple functions: build a list */
         (yyval.node) = createStmtList((yyvsp[-1].node), (yyvsp[0].node));
     }
-#line 1218 "parser.tab.c"
+#line 1230 "parser.tab.c"
     break;
 
   case 8: /* func_decl: FUNC ID '(' param_list ')' stmt_list end_clause  */
@@ -1224,7 +1236,7 @@ yyreduce:
         (yyval.node) = createFuncDecl((yyvsp[-5].str), (yyvsp[-3].node), (yyvsp[-1].node), (yyvsp[0].node));
         free((yyvsp[-5].str));
     }
-#line 1228 "parser.tab.c"
+#line 1240 "parser.tab.c"
     break;
 
   case 9: /* func_decl: FUNC ID '(' ')' stmt_list end_clause  */
@@ -1234,7 +1246,7 @@ yyreduce:
         (yyval.node) = createFuncDecl((yyvsp[-4].str), NULL, (yyvsp[-1].node), (yyvsp[0].node));
         free((yyvsp[-4].str));
     }
-#line 1238 "parser.tab.c"
+#line 1250 "parser.tab.c"
     break;
 
   case 10: /* func_decl: FUNC ID '(' param_list ')' end_clause  */
@@ -1244,7 +1256,7 @@ yyreduce:
         (yyval.node) = createFuncDecl((yyvsp[-4].str), (yyvsp[-2].node), NULL, (yyvsp[0].node));
         free((yyvsp[-4].str));
     }
-#line 1248 "parser.tab.c"
+#line 1260 "parser.tab.c"
     break;
 
   case 11: /* func_decl: FUNC ID '(' ')' end_clause  */
@@ -1254,7 +1266,7 @@ yyreduce:
         (yyval.node) = createFuncDecl((yyvsp[-3].str), NULL, NULL, (yyvsp[0].node));
         free((yyvsp[-3].str));
     }
-#line 1258 "parser.tab.c"
+#line 1270 "parser.tab.c"
     break;
 
   case 12: /* func_decl: FUNC error  */
@@ -1266,7 +1278,7 @@ yyreduce:
         (yyval.node) = NULL;
         yyerrok;
     }
-#line 1270 "parser.tab.c"
+#line 1282 "parser.tab.c"
     break;
 
   case 13: /* param_list: param_item  */
@@ -1276,7 +1288,7 @@ yyreduce:
          * always receives a list head, never a raw NODE_PARAM */
         (yyval.node) = createParamList((yyvsp[0].node), NULL);
     }
-#line 1280 "parser.tab.c"
+#line 1292 "parser.tab.c"
     break;
 
   case 14: /* param_list: param_list ',' param_item  */
@@ -1285,7 +1297,7 @@ yyreduce:
         /* Multiple parameters */
         (yyval.node) = appendParamList((yyvsp[-2].node), (yyvsp[0].node));
     }
-#line 1289 "parser.tab.c"
+#line 1301 "parser.tab.c"
     break;
 
   case 15: /* param_list: param_list ',' error  */
@@ -1297,7 +1309,7 @@ yyreduce:
         (yyval.node) = (yyvsp[-2].node);
         yyerrok;
     }
-#line 1301 "parser.tab.c"
+#line 1313 "parser.tab.c"
     break;
 
   case 16: /* param_item: INT ID  */
@@ -1306,7 +1318,7 @@ yyreduce:
         (yyval.node) = createParam((yyvsp[0].str));
         free((yyvsp[0].str));
     }
-#line 1310 "parser.tab.c"
+#line 1322 "parser.tab.c"
     break;
 
   case 17: /* param_item: error ID  */
@@ -1319,7 +1331,7 @@ yyreduce:
         free((yyvsp[0].str));
         yyerrok;
     }
-#line 1323 "parser.tab.c"
+#line 1335 "parser.tab.c"
     break;
 
   case 18: /* end_clause: END NULLTOK ';'  */
@@ -1328,7 +1340,7 @@ yyreduce:
         /* Void return — function returns nothing */
         (yyval.node) = createEndClause(NULL);
     }
-#line 1332 "parser.tab.c"
+#line 1344 "parser.tab.c"
     break;
 
   case 19: /* end_clause: END ID ';'  */
@@ -1338,7 +1350,7 @@ yyreduce:
         (yyval.node) = createEndClause((yyvsp[-1].str));
         free((yyvsp[-1].str));
     }
-#line 1342 "parser.tab.c"
+#line 1354 "parser.tab.c"
     break;
 
   case 20: /* end_clause: END NULLTOK error  */
@@ -1350,7 +1362,7 @@ yyreduce:
         (yyval.node) = createEndClause(NULL);
         yyerrok;
     }
-#line 1354 "parser.tab.c"
+#line 1366 "parser.tab.c"
     break;
 
   case 21: /* end_clause: END ID error  */
@@ -1363,7 +1375,7 @@ yyreduce:
         free((yyvsp[-1].str));
         yyerrok;
     }
-#line 1367 "parser.tab.c"
+#line 1379 "parser.tab.c"
     break;
 
   case 22: /* end_clause: END error  */
@@ -1375,7 +1387,7 @@ yyreduce:
         (yyval.node) = NULL;
         yyerrok;
     }
-#line 1379 "parser.tab.c"
+#line 1391 "parser.tab.c"
     break;
 
   case 23: /* program_start: PROGRAM_START '(' ')' stmt_list end_clause  */
@@ -1384,7 +1396,7 @@ yyreduce:
         /* Standard form with parentheses and statements */
         (yyval.node) = createProgramStart((yyvsp[-1].node), (yyvsp[0].node));
     }
-#line 1388 "parser.tab.c"
+#line 1400 "parser.tab.c"
     break;
 
   case 24: /* program_start: PROGRAM_START '(' ')' end_clause  */
@@ -1393,7 +1405,7 @@ yyreduce:
         /* Empty Program_Start body */
         (yyval.node) = createProgramStart(NULL, (yyvsp[0].node));
     }
-#line 1397 "parser.tab.c"
+#line 1409 "parser.tab.c"
     break;
 
   case 25: /* program_start: PROGRAM_START error  */
@@ -1405,7 +1417,7 @@ yyreduce:
         (yyval.node) = NULL;
         yyerrok;
     }
-#line 1409 "parser.tab.c"
+#line 1421 "parser.tab.c"
     break;
 
   case 26: /* stmt_list: stmt  */
@@ -1414,7 +1426,7 @@ yyreduce:
         /* Base case: single statement */
         (yyval.node) = (yyvsp[0].node);
     }
-#line 1418 "parser.tab.c"
+#line 1430 "parser.tab.c"
     break;
 
   case 27: /* stmt_list: stmt_list stmt  */
@@ -1423,7 +1435,7 @@ yyreduce:
         /* Recursive case: list followed by another statement */
         (yyval.node) = createStmtList((yyvsp[-1].node), (yyvsp[0].node));
     }
-#line 1427 "parser.tab.c"
+#line 1439 "parser.tab.c"
     break;
 
   case 31: /* id_list: ID  */
@@ -1433,7 +1445,7 @@ yyreduce:
         (yyval.node) = createIdList((yyvsp[0].str));
         free((yyvsp[0].str));
     }
-#line 1437 "parser.tab.c"
+#line 1449 "parser.tab.c"
     break;
 
   case 32: /* id_list: id_list ',' ID  */
@@ -1443,7 +1455,7 @@ yyreduce:
         (yyval.node) = appendIdList((yyvsp[-2].node), (yyvsp[0].str));
         free((yyvsp[0].str));
     }
-#line 1447 "parser.tab.c"
+#line 1459 "parser.tab.c"
     break;
 
   case 33: /* id_list: id_list ',' error  */
@@ -1455,7 +1467,7 @@ yyreduce:
         (yyval.node) = (yyvsp[-2].node);
         yyerrok;
     }
-#line 1459 "parser.tab.c"
+#line 1471 "parser.tab.c"
     break;
 
   case 34: /* decl: INT id_list ';'  */
@@ -1463,11 +1475,20 @@ yyreduce:
                     {
         (yyval.node) = createMultiDecl((yyvsp[-1].node));
     }
-#line 1467 "parser.tab.c"
+#line 1479 "parser.tab.c"
     break;
 
-  case 35: /* decl: INT id_list error  */
+  case 35: /* decl: INT ID '[' NUM ']' ';'  */
 #line 310 "parser.y"
+                             {         
+        (yyval.node) = createArrayDecl((yyvsp[-4].str), (yyvsp[-2].num));
+        free((yyvsp[-4].str));
+    }
+#line 1488 "parser.tab.c"
+    break;
+
+  case 36: /* decl: INT id_list error  */
+#line 314 "parser.y"
                         {
         fprintf(stderr, "\n❌ Syntax Error at line %d:\n", yylineno);
         fprintf(stderr, "   Missing semicolon after variable declaration\n");
@@ -1475,11 +1496,11 @@ yyreduce:
         (yyval.node) = NULL;
         yyerrok;
     }
-#line 1479 "parser.tab.c"
+#line 1500 "parser.tab.c"
     break;
 
-  case 36: /* decl: INT error  */
-#line 317 "parser.y"
+  case 37: /* decl: INT error  */
+#line 321 "parser.y"
                 {
         fprintf(stderr, "\n❌ Syntax Error at line %d:\n", yylineno);
         fprintf(stderr, "   Invalid or missing identifier in declaration\n");
@@ -1487,30 +1508,42 @@ yyreduce:
         (yyval.node) = NULL;
         yyerrok;
     }
-#line 1491 "parser.tab.c"
+#line 1512 "parser.tab.c"
     break;
 
-  case 37: /* assign: ID '=' expr ';'  */
-#line 333 "parser.y"
+  case 38: /* assign: ID '=' expr ';'  */
+#line 337 "parser.y"
                     {
         (yyval.node) = createAssign((yyvsp[-3].str), (yyvsp[-1].node));
         free((yyvsp[-3].str));
     }
-#line 1500 "parser.tab.c"
+#line 1521 "parser.tab.c"
     break;
 
-  case 38: /* assign: ID '=' func_call ';'  */
-#line 337 "parser.y"
+  case 39: /* assign: ID '=' func_call ';'  */
+#line 341 "parser.y"
                            {
         /* Function call as RHS: z = add(x, y); */
         (yyval.node) = createAssign((yyvsp[-3].str), (yyvsp[-1].node));
         free((yyvsp[-3].str));
     }
-#line 1510 "parser.tab.c"
+#line 1531 "parser.tab.c"
     break;
 
-  case 39: /* assign: ID '=' expr error  */
-#line 342 "parser.y"
+  case 40: /* assign: ID '[' expr ']' '=' expr ';'  */
+#line 346 "parser.y"
+                                   {
+    ASTNode* lhs = createArrayIndex((yyvsp[-6].str), (yyvsp[-4].node));
+    ASTNode* node = createAssign(NULL, (yyvsp[-1].node));
+    node->data.assign.arrayLHS = lhs;
+    (yyval.node) = node;
+    free((yyvsp[-6].str));
+    }
+#line 1543 "parser.tab.c"
+    break;
+
+  case 41: /* assign: ID '=' expr error  */
+#line 353 "parser.y"
                         {
         fprintf(stderr, "\n❌ Syntax Error at line %d:\n", yylineno);
         fprintf(stderr, "   Missing semicolon after assignment\n");
@@ -1519,11 +1552,11 @@ yyreduce:
         (yyval.node) = NULL;
         yyerrok;
     }
-#line 1523 "parser.tab.c"
+#line 1556 "parser.tab.c"
     break;
 
-  case 40: /* assign: ID '=' func_call error  */
-#line 350 "parser.y"
+  case 42: /* assign: ID '=' func_call error  */
+#line 361 "parser.y"
                              {
         fprintf(stderr, "\n❌ Syntax Error at line %d:\n", yylineno);
         fprintf(stderr, "   Missing semicolon after function call assignment\n");
@@ -1532,11 +1565,11 @@ yyreduce:
         (yyval.node) = NULL;
         yyerrok;
     }
-#line 1536 "parser.tab.c"
+#line 1569 "parser.tab.c"
     break;
 
-  case 41: /* assign: ID '=' error  */
-#line 358 "parser.y"
+  case 43: /* assign: ID '=' error  */
+#line 369 "parser.y"
                    {
         fprintf(stderr, "\n❌ Syntax Error at line %d:\n", yylineno);
         fprintf(stderr, "   Invalid expression in assignment\n");
@@ -1545,11 +1578,11 @@ yyreduce:
         (yyval.node) = NULL;
         yyerrok;
     }
-#line 1549 "parser.tab.c"
+#line 1582 "parser.tab.c"
     break;
 
-  case 42: /* assign: ID error  */
-#line 366 "parser.y"
+  case 44: /* assign: ID error  */
+#line 377 "parser.y"
                {
         fprintf(stderr, "\n❌ Syntax Error at line %d:\n", yylineno);
         fprintf(stderr, "   Missing '=' in assignment statement\n");
@@ -1558,30 +1591,30 @@ yyreduce:
         (yyval.node) = NULL;
         yyerrok;
     }
-#line 1562 "parser.tab.c"
+#line 1595 "parser.tab.c"
     break;
 
-  case 43: /* func_call: ID '(' arg_list ')'  */
-#line 383 "parser.y"
+  case 45: /* func_call: ID '(' arg_list ')'  */
+#line 394 "parser.y"
                         {
         (yyval.node) = createFuncCall((yyvsp[-3].str), (yyvsp[-1].node));
         free((yyvsp[-3].str));
     }
-#line 1571 "parser.tab.c"
+#line 1604 "parser.tab.c"
     break;
 
-  case 44: /* func_call: ID '(' ')'  */
-#line 387 "parser.y"
+  case 46: /* func_call: ID '(' ')'  */
+#line 398 "parser.y"
                  {
         /* No arguments */
         (yyval.node) = createFuncCall((yyvsp[-2].str), NULL);
         free((yyvsp[-2].str));
     }
-#line 1581 "parser.tab.c"
+#line 1614 "parser.tab.c"
     break;
 
-  case 45: /* func_call: ID '(' arg_list error  */
-#line 392 "parser.y"
+  case 47: /* func_call: ID '(' arg_list error  */
+#line 403 "parser.y"
                             {
         fprintf(stderr, "\n❌ Syntax Error at line %d:\n", yylineno);
         fprintf(stderr, "   Missing closing ')' in function call\n");
@@ -1590,11 +1623,11 @@ yyreduce:
         free((yyvsp[-3].str));
         yyerrok;
     }
-#line 1594 "parser.tab.c"
+#line 1627 "parser.tab.c"
     break;
 
-  case 46: /* func_call: ID '(' error  */
-#line 400 "parser.y"
+  case 48: /* func_call: ID '(' error  */
+#line 411 "parser.y"
                    {
         fprintf(stderr, "\n❌ Syntax Error at line %d:\n", yylineno);
         fprintf(stderr, "   Invalid argument in function call\n");
@@ -1602,29 +1635,29 @@ yyreduce:
         (yyval.node) = NULL;
         yyerrok;
     }
-#line 1606 "parser.tab.c"
+#line 1639 "parser.tab.c"
     break;
 
-  case 47: /* arg_list: expr  */
-#line 416 "parser.y"
+  case 49: /* arg_list: expr  */
+#line 427 "parser.y"
          {
         /* Single argument */
         (yyval.node) = createArgList((yyvsp[0].node));
     }
-#line 1615 "parser.tab.c"
+#line 1648 "parser.tab.c"
     break;
 
-  case 48: /* arg_list: arg_list ',' expr  */
-#line 420 "parser.y"
+  case 50: /* arg_list: arg_list ',' expr  */
+#line 431 "parser.y"
                         {
         /* Multiple arguments */
         (yyval.node) = appendArgList((yyvsp[-2].node), (yyvsp[0].node));
     }
-#line 1624 "parser.tab.c"
+#line 1657 "parser.tab.c"
     break;
 
-  case 49: /* arg_list: arg_list ',' error  */
-#line 424 "parser.y"
+  case 51: /* arg_list: arg_list ',' error  */
+#line 435 "parser.y"
                          {
         fprintf(stderr, "\n❌ Syntax Error at line %d:\n", yylineno);
         fprintf(stderr, "   Expected expression after comma in argument list\n");
@@ -1632,56 +1665,65 @@ yyreduce:
         (yyval.node) = (yyvsp[-2].node);
         yyerrok;
     }
-#line 1636 "parser.tab.c"
+#line 1669 "parser.tab.c"
     break;
 
-  case 50: /* expr: NUM  */
-#line 439 "parser.y"
+  case 52: /* expr: NUM  */
+#line 450 "parser.y"
         {
         /* Integer literal */
         (yyval.node) = createNum((yyvsp[0].num));
     }
-#line 1645 "parser.tab.c"
+#line 1678 "parser.tab.c"
     break;
 
-  case 51: /* expr: ID  */
-#line 443 "parser.y"
+  case 53: /* expr: ID  */
+#line 454 "parser.y"
          {
         /* Variable reference */
         (yyval.node) = createVar((yyvsp[0].str));
         free((yyvsp[0].str));
     }
-#line 1655 "parser.tab.c"
+#line 1688 "parser.tab.c"
     break;
 
-  case 52: /* expr: expr '+' expr  */
-#line 448 "parser.y"
+  case 54: /* expr: expr '+' expr  */
+#line 459 "parser.y"
                     {
         /* Binary addition — left-associative via %left above */
         (yyval.node) = createBinOp('+', (yyvsp[-2].node), (yyvsp[0].node));
     }
-#line 1664 "parser.tab.c"
+#line 1697 "parser.tab.c"
     break;
 
-  case 53: /* expr: '(' expr ')'  */
-#line 452 "parser.y"
+  case 55: /* expr: '(' expr ')'  */
+#line 463 "parser.y"
                    {
         /* Parenthesized expression */
         (yyval.node) = (yyvsp[-1].node);
     }
-#line 1673 "parser.tab.c"
+#line 1706 "parser.tab.c"
     break;
 
-  case 54: /* print_stmt: PRINT '(' expr ')' ';'  */
-#line 464 "parser.y"
+  case 56: /* expr: ID '[' expr ']'  */
+#line 467 "parser.y"
+                      {   
+        (yyval.node) = createArrayIndex((yyvsp[-3].str), (yyvsp[-1].node));
+        free((yyvsp[-3].str)); 
+    }
+#line 1715 "parser.tab.c"
+    break;
+
+  case 57: /* print_stmt: PRINT '(' expr ')' ';'  */
+#line 479 "parser.y"
                            {
         (yyval.node) = createPrint((yyvsp[-2].node));
     }
-#line 1681 "parser.tab.c"
+#line 1723 "parser.tab.c"
     break;
 
-  case 55: /* print_stmt: PRINT '(' expr ')' error  */
-#line 467 "parser.y"
+  case 58: /* print_stmt: PRINT '(' expr ')' error  */
+#line 482 "parser.y"
                                {
         fprintf(stderr, "\n❌ Syntax Error at line %d:\n", yylineno);
         fprintf(stderr, "   Missing semicolon after print statement\n");
@@ -1689,11 +1731,11 @@ yyreduce:
         (yyval.node) = NULL;
         yyerrok;
     }
-#line 1693 "parser.tab.c"
+#line 1735 "parser.tab.c"
     break;
 
-  case 56: /* print_stmt: PRINT '(' expr error  */
-#line 474 "parser.y"
+  case 59: /* print_stmt: PRINT '(' expr error  */
+#line 489 "parser.y"
                            {
         fprintf(stderr, "\n❌ Syntax Error at line %d:\n", yylineno);
         fprintf(stderr, "   Missing closing parenthesis in print statement\n");
@@ -1701,11 +1743,11 @@ yyreduce:
         (yyval.node) = NULL;
         yyerrok;
     }
-#line 1705 "parser.tab.c"
+#line 1747 "parser.tab.c"
     break;
 
-  case 57: /* print_stmt: PRINT '(' error  */
-#line 481 "parser.y"
+  case 60: /* print_stmt: PRINT '(' error  */
+#line 496 "parser.y"
                       {
         fprintf(stderr, "\n❌ Syntax Error at line %d:\n", yylineno);
         fprintf(stderr, "   Invalid expression in print statement\n");
@@ -1713,11 +1755,11 @@ yyreduce:
         (yyval.node) = NULL;
         yyerrok;
     }
-#line 1717 "parser.tab.c"
+#line 1759 "parser.tab.c"
     break;
 
-  case 58: /* print_stmt: PRINT error  */
-#line 488 "parser.y"
+  case 61: /* print_stmt: PRINT error  */
+#line 503 "parser.y"
                   {
         fprintf(stderr, "\n❌ Syntax Error at line %d:\n", yylineno);
         fprintf(stderr, "   Missing opening parenthesis in print statement\n");
@@ -1725,11 +1767,11 @@ yyreduce:
         (yyval.node) = NULL;
         yyerrok;
     }
-#line 1729 "parser.tab.c"
+#line 1771 "parser.tab.c"
     break;
 
 
-#line 1733 "parser.tab.c"
+#line 1775 "parser.tab.c"
 
       default: break;
     }
@@ -1922,7 +1964,7 @@ yyreturnlab:
   return yyresult;
 }
 
-#line 497 "parser.y"
+#line 512 "parser.y"
 
 
 /* ERROR HANDLING - Called by Bison when a syntax error is detected */
