@@ -169,7 +169,7 @@ static void genFuncDef(ASTNode* node) {
     int frameSize = 128;
 
     /* ── Function label ── */
-    fprintf(output, "\n# ── Function: %s ──\n", node->data.func_def.name);
+    fprintf(output, "\n# -- Function: %s --\n", node->data.func_def.name);
     fprintf(output, "func_%s:\n", node->data.func_def.name);
 
     /* ── Prologue: allocate frame, save $ra ── */
@@ -375,7 +375,7 @@ void generateMIPS(ASTNode* root, const char* filename) {
 
     /* ── MIPS file header ── */
     fprintf(output, "# Generated MIPS Assembly\n");
-    fprintf(output, "# ─────────────────────────────────────\n\n");
+    fprintf(output, "# -------------------------------------\n\n");
     fprintf(output, ".data\n");
 
 /* Emit static storage for global arrays */
