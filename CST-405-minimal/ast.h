@@ -17,7 +17,8 @@
  * ───────────────────────────────────────────────────────────────────────── */
 typedef enum {
     /* ── Expressions ── */
-    NODE_NUM,           /* Numeric literal             e.g. 42          */
+    NODE_NUM,           /* Integer literal             e.g. 42          */
+    NODE_FLOAT,         /* Float literal               e.g. 3.14        */
     NODE_VAR,           /* Variable reference          e.g. x           */
     NODE_BINOP,         /* Binary operation            e.g. x + y       */
 
@@ -63,6 +64,9 @@ typedef struct ASTNode {
 
         /* NODE_NUM ─ integer literal value */
         int num;
+
+        /* NODE_FLOAT ─ float literal value */
+        float fval;
 
         /* NODE_VAR, NODE_END_CLAUSE ─ variable name or return var
          * NODE_END_CLAUSE: name == NULL means "end null;" (void)
@@ -178,6 +182,7 @@ typedef struct ASTNode {
          *   isParam == 1 → parameter    e.g. int arr[]     (size == 0) */
         struct {
             char* name;
+            char* varType;  /* Element type: "int" or "float"  */
             int   size;     /* Element count; 0 for parameters */
             int   isParam;  /* 1 if function parameter         */
         } array_decl;
@@ -197,8 +202,13 @@ typedef struct ASTNode {
  * CONSTRUCTOR FUNCTIONS  (called by the parser)
  * ───────────────────────────────────────────────────────────────────────── */
 
+/* Float literal interception — set by scanner before returning NUM token */
+extern int   pendingFloatLit;
+extern float pendingFloatValue;
+
 /* Expressions */
 ASTNode* createNum(int value);
+ASTNode* createFloat(float value);
 ASTNode* createVar(char* name);
 ASTNode* createBinOp(char op, ASTNode* left, ASTNode* right);
 
@@ -212,6 +222,7 @@ ASTNode* createStmtList(ASTNode* stmt1, ASTNode* stmt2);
 ASTNode* createIdList(char* name);
 ASTNode* appendIdList(ASTNode* list, char* name);
 ASTNode* createMultiDecl(ASTNode* id_list);
+ASTNode* createMultiDeclTyped(ASTNode* id_list, char* type);
 
 /* Functions */
 ASTNode* createFuncDecl(char* name, ASTNode* params, ASTNode* body,
@@ -234,6 +245,7 @@ ASTNode* createBlock(ASTNode* stmt_list);
 
 /* Arrays */
 ASTNode* createArrayDecl(char* name, int size);
+ASTNode* createArrayDeclTyped(char* name, int size, char* type);
 ASTNode* createArrayParam(char* name);
 ASTNode* createArrayIndex(char* name, ASTNode* index);
 

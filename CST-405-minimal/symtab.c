@@ -102,6 +102,14 @@ int getVarOffset(char* name) {
     return -1;
 }
 
+/* Returns the type string of a declared variable, or NULL if not found. */
+char* getVarType(char* name) {
+    for (int i = 0; i < symtab.count; i++)
+        if (strcmp(symtab.vars[i].name, name) == 0)
+            return symtab.vars[i].type;
+    return NULL;
+}
+
 /* Returns 1 if the variable has been declared, 0 otherwise. */
 int isVarDeclared(char* name) {
     for (int i = 0; i < symtab.count; i++)
@@ -129,14 +137,7 @@ void printSymTab() {
         printf("  ────────────────────────────────────────\n");
         for (int i = 0; i < symtab.count; i++) {
             if (symtab.vars[i].isArray) {
-                printf("  [%d]  %-16s %-8s %-8d [%d]\n",
-                       i,
-                       symtab.vars[i].name,
-                       symtab.vars[i].type,
-                       symtab.vars[i].offset,
-                       symtab.vars[i].arrSize);
-            } else {
-                printf("  [%d]  %-16s %-8s %d\n",
+                printf("  [%d]  %-16s %-8s %-8d\n",
                        i,
                        symtab.vars[i].name,
                        symtab.vars[i].type,
@@ -144,5 +145,5 @@ void printSymTab() {
             }
         }
     }
-    printf("==========================\n\n");
+    printf("\n");
 }

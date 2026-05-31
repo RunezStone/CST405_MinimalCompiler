@@ -32,9 +32,10 @@ extern SymbolTable symtab;
 void initSymTab(void);              /* Reset table — call at program start and each func */
 int  addVar(char* name, char* type);/* Add scalar var; returns offset or -1 on duplicate */
 int  addArray(char* name, int size);/* Add array;     returns base offset or -1          */
-int  getVarOffset(char* name);      /* Look up offset; returns -1 if not found           */
-int  isVarDeclared(char* name);     /* 1 if declared, 0 otherwise                        */
+int   getVarOffset(char* name);     /* Look up offset; returns -1 if not found           */
+char* getVarType(char* name);       /* Look up type; returns NULL if not found           */
+int   isVarDeclared(char* name);    /* 1 if declared, 0 otherwise                        */
 int  getFrameSize(void);            /* Total bytes needed for current frame (incl. $ra)  */
-void printSymTab(void);             /* Debug print                                       */
+void printSymTab(void);
 
 #endif /* SYMTAB_H */

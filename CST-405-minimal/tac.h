@@ -27,8 +27,12 @@
  * OPCODE ENUM
  * ───────────────────────────────────────────────────────────────────────── */
 typedef enum {
-    /* Existing opcodes */
+    /* Arithmetic opcodes */
     TAC_ADD,        /* result = arg1 + arg2                    */
+    TAC_SUB,        /* result = arg1 - arg2                    */
+    TAC_MUL,        /* result = arg1 * arg2                    */
+    TAC_DIV,        /* result = arg1 / arg2                    */
+    TAC_NEG,        /* result = -arg1  (unary minus)           */
     TAC_ASSIGN,     /* result = arg1                           */
     TAC_PRINT,      /* print(arg1)                             */
     TAC_DECL,       /* declare variable 'result' of type arg1  */
@@ -39,9 +43,9 @@ typedef enum {
     TAC_PARAM,      /* formal parameter:   PARAM      name     */
     TAC_ARG,        /* call argument:      ARG        value    */
     TAC_CALL,       /* call:               result = CALL arg1, arg2 (count) */
-    TAC_RETURN,      /* return value:       RETURN     value    */
-    TAC_ARRAY_LOAD,    /* ← ADD: t0 = arr[i]  */
-    TAC_ARRAY_STORE    /* ← ADD: arr[i] = t0  */
+    TAC_RETURN,     /* return value:       RETURN     value    */
+    TAC_ARRAY_LOAD, /* t0 = arr[i]                             */
+    TAC_ARRAY_STORE /* arr[i] = t0                             */
 } TACOp;
 
 /* ─────────────────────────────────────────────────────────────────────────

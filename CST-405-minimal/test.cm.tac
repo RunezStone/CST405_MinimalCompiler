@@ -1,23 +1,16 @@
 # Three-Address Code (TAC) - Unoptimized
 # ─────────────────────────────────────
 
- 1: DECL int x
- 2: DECL int y
- 3: DECL int z
- 4: FUNC_BEGIN add
- 5: PARAM a
- 6: PARAM b
- 7: DECL int result
- 8: t0 = a + b
- 9: result = t0
-10: RETURN result
-11: FUNC_END add
-12: FUNC_BEGIN Program_Start
-13: x = 1
-14: y = 2
-15: ARG x
-16: ARG y
-17: t1 = CALL add, 2
-18: z = t1
-19: PRINT z
-20: FUNC_END Program_Start
+ 1: DECL int a
+ 2: DECL int b
+ 3: DECL int result
+ 4: FUNC_BEGIN Program_Start
+ 5: a = 10
+ 6: b = 3
+ 7: t0 = a + b
+ 8: t2 = a - b
+ 9: t1 = t0 * t2
+10: t3 = t1 / 2
+11: result = t3
+12: PRINT result
+13: FUNC_END Program_Start

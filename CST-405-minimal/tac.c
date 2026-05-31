@@ -194,7 +194,13 @@ void allocateRegistersForTAC() {
                 break;
 
             case TAC_ADD:
-                printf("%s = %s + %s\n", curr->result, curr->arg1, curr->arg2);
+            case TAC_SUB:
+            case TAC_MUL:
+            case TAC_DIV: {
+                const char* opstr = (curr->op==TAC_ADD)?"+":
+                                    (curr->op==TAC_SUB)?"-":
+                                    (curr->op==TAC_MUL)?"*":"/";
+                printf("%s = %s %s %s\n", curr->result, curr->arg1, opstr, curr->arg2);
                 if (curr->arg1 && !isdigit((unsigned char)curr->arg1[0]))
                     allocReg(curr->arg1);
                 if (curr->arg2 && !isdigit((unsigned char)curr->arg2[0]))
@@ -202,6 +208,14 @@ void allocateRegistersForTAC() {
                 allocReg(curr->result);
                 if (curr->arg1 && curr->arg1[0] == 't') freeReg(curr->arg1);
                 if (curr->arg2 && curr->arg2[0] == 't') freeReg(curr->arg2);
+                break;
+            }
+            case TAC_NEG:
+                printf("%s = -%s\n", curr->result, curr->arg1);
+                if (curr->arg1 && !isdigit((unsigned char)curr->arg1[0]))
+                    allocReg(curr->arg1);
+                allocReg(curr->result);
+                if (curr->arg1 && curr->arg1[0] == 't') freeReg(curr->arg1);
                 break;
 
             case TAC_PRINT:
@@ -324,15 +338,38 @@ char* generateTACExpr(ASTNode* node) {
             return temp;
         }
 
+        case NODE_FLOAT: {
+            char* temp = malloc(32);
+            sprintf(temp, "%g", node->data.fval);
+            /* Ensure it contains a decimal point so it's distinguishable
+             * from an integer constant in later phases */
+            if (!strchr(temp, '.') && !strchr(temp, 'e'))
+                strcat(temp, ".0");
+            return temp;
+        }
+
         case NODE_VAR:
             return strdup(node->data.name);
 
         case NODE_BINOP: {
             char* left  = generateTACExpr(node->data.binop.left);
-            char* right = generateTACExpr(node->data.binop.right);
             char* temp  = newTemp();
-            if (node->data.binop.op == '+')
-                appendTAC(createTAC(TAC_ADD, left, right, temp));
+            char  op    = node->data.binop.op;
+            if (op == 'u') {
+                /* Unary minus: right is NULL, negate left */
+                appendTAC(createTAC(TAC_NEG, left, NULL, temp));
+            } else {
+                char* right = generateTACExpr(node->data.binop.right);
+                TACOp tacOp;
+                switch (op) {
+                    case '+': tacOp = TAC_ADD; break;
+                    case '-': tacOp = TAC_SUB; break;
+                    case '*': tacOp = TAC_MUL; break;
+                    case '/': tacOp = TAC_DIV; break;
+                    default:  tacOp = TAC_ADD; break; /* comparisons emit as-is */
+                }
+                appendTAC(createTAC(tacOp, left, right, temp));
+            }
             return temp;
         }
 
@@ -552,13 +589,24 @@ static void printOneInstr(FILE* out, TACInstr* curr, int lineNum) {
                     curr->result, curr->arg1);
             break;
         case TAC_ADD:
-            fprintf(out, "%s = %s + %s\n",
-                    curr->result, curr->arg1, curr->arg2);
+            fprintf(out, "%s = %s + %s\n", curr->result, curr->arg1, curr->arg2);
+            break;
+        case TAC_SUB:
+            fprintf(out, "%s = %s - %s\n", curr->result, curr->arg1, curr->arg2);
+            break;
+        case TAC_MUL:
+            fprintf(out, "%s = %s * %s\n", curr->result, curr->arg1, curr->arg2);
+            break;
+        case TAC_DIV:
+            fprintf(out, "%s = %s / %s\n", curr->result, curr->arg1, curr->arg2);
+            break;
+        case TAC_NEG:
+            fprintf(out, "%s = -%s\n", curr->result, curr->arg1);
             break;
         case TAC_PRINT:
             fprintf(out, "PRINT %s\n", curr->arg1);
             break;
-        /* ── NEW opcodes ── */
+        /* ── function opcodes ── */
         case TAC_FUNC_BEGIN:
             fprintf(out, "FUNC_BEGIN %s\n", curr->result);
             break;
@@ -653,7 +701,10 @@ int optimizeTACPass(VarValue* values, int* valueCount) {
         TACInstr* newInstr = NULL;
 
         switch (curr->op) {
-            case TAC_ADD: {
+            case TAC_ADD:
+            case TAC_SUB:
+            case TAC_MUL:
+            case TAC_DIV: {
                 char* left  = curr->arg1;
                 char* right = curr->arg2;
 
@@ -662,22 +713,37 @@ int optimizeTACPass(VarValue* values, int* valueCount) {
                 for (int i = *valueCount - 1; i >= 0; i--)
                     if (strcmp(values[i].var, right) == 0) { right = values[i].value; break; }
 
-                if (isdigit((unsigned char)left[0]) &&
-                    isdigit((unsigned char)right[0])) {
-                    int result = atoi(left) + atoi(right);
-                    char* resultStr = malloc(20);
-                    sprintf(resultStr, "%d", result);
+                /* Constant folding for integer operands */
+                int leftIsConst  = isdigit((unsigned char)left[0])  || (left[0]=='-'  && isdigit((unsigned char)left[1]));
+                int rightIsConst = isdigit((unsigned char)right[0]) || (right[0]=='-' && isdigit((unsigned char)right[1]));
+                if (leftIsConst && rightIsConst &&
+                    !(curr->op == TAC_DIV && atoi(right) == 0)) {
+                    int lv = atoi(left), rv = atoi(right), res = 0;
+                    if      (curr->op == TAC_ADD) res = lv + rv;
+                    else if (curr->op == TAC_SUB) res = lv - rv;
+                    else if (curr->op == TAC_MUL) res = lv * rv;
+                    else                          res = lv / rv;
+                    char* resultStr = malloc(24);
+                    sprintf(resultStr, "%d", res);
                     values[*valueCount].var   = strdup(curr->result);
                     values[*valueCount].value = resultStr;
                     (*valueCount)++;
                     newInstr = createTAC(TAC_ASSIGN, resultStr, NULL, curr->result);
                     changed = 1;
                 } else {
-                    newInstr = createTAC(TAC_ADD, left, right, curr->result);
+                    newInstr = createTAC(curr->op, left, right, curr->result);
                     if (strcmp(left,  curr->arg1) != 0 ||
                         strcmp(right, curr->arg2) != 0)
                         changed = 1;
                 }
+                break;
+            }
+            case TAC_NEG: {
+                char* operand = curr->arg1;
+                for (int i = *valueCount - 1; i >= 0; i--)
+                    if (strcmp(values[i].var, operand) == 0) { operand = values[i].value; break; }
+                newInstr = createTAC(TAC_NEG, operand, NULL, curr->result);
+                if (strcmp(operand, curr->arg1) != 0) changed = 1;
                 break;
             }
 
@@ -846,13 +912,32 @@ void saveOptimizedTACToFile(const char* filename) {
         return;
     }
     fprintf(file, "# Three-Address Code (TAC) - Optimized\n");
-    fprintf(file, "# Optimizations: Constant folding, Copy propagation, DCE\n");
-    fprintf(file, "# ─────────────────────────────────────\n\n");
+    fprintf(file, "# Optimized Three-Address Code\n");
+    fprintf(file, "# ----------------------------------\n");
     TACInstr* curr = optimizedList.head;
     int lineNum = 1;
     while (curr) {
-        printOneInstr(file, curr, lineNum++);
+        switch (curr->op) {
+            case TAC_DECL:   fprintf(file, "%d: DECL %s %s\n",   lineNum, curr->arg1, curr->result); break;
+            case TAC_ASSIGN: fprintf(file, "%d: %s = %s\n",      lineNum, curr->result, curr->arg1); break;
+            case TAC_ADD:    fprintf(file, "%d: %s = %s + %s\n", lineNum, curr->result, curr->arg1, curr->arg2); break;
+            case TAC_SUB:    fprintf(file, "%d: %s = %s - %s\n", lineNum, curr->result, curr->arg1, curr->arg2); break;
+            case TAC_MUL:    fprintf(file, "%d: %s = %s * %s\n", lineNum, curr->result, curr->arg1, curr->arg2); break;
+            case TAC_DIV:    fprintf(file, "%d: %s = %s / %s\n", lineNum, curr->result, curr->arg1, curr->arg2); break;
+            case TAC_NEG:    fprintf(file, "%d: %s = -%s\n",     lineNum, curr->result, curr->arg1); break;
+            case TAC_PRINT:  fprintf(file, "%d: print %s\n",     lineNum, curr->arg1); break;
+            case TAC_FUNC_BEGIN: fprintf(file, "%d: FUNC_BEGIN %s\n", lineNum, curr->result); break;
+            case TAC_FUNC_END:   fprintf(file, "%d: FUNC_END %s\n",   lineNum, curr->result); break;
+            case TAC_PARAM:  fprintf(file, "%d: PARAM %s\n",   lineNum, curr->arg1); break;
+            case TAC_ARG:    fprintf(file, "%d: ARG %s\n",     lineNum, curr->arg1); break;
+            case TAC_CALL:   fprintf(file, "%d: %s = CALL %s, %s\n", lineNum, curr->result, curr->arg1, curr->arg2); break;
+            case TAC_RETURN: fprintf(file, "%d: RETURN %s\n", lineNum, curr->arg1); break;
+            case TAC_ARRAY_LOAD:  fprintf(file, "%d: %s = %s[%s]\n", lineNum, curr->result, curr->arg1, curr->arg2); break;
+            case TAC_ARRAY_STORE: fprintf(file, "%d: %s[%s] = %s\n", lineNum, curr->arg1, curr->arg2, curr->result); break;
+            default: break;
+        }
         curr = curr->next;
+        lineNum++;
     }
     fclose(file);
 }

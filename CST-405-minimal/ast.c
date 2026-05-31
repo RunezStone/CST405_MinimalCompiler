@@ -14,12 +14,31 @@ extern int yylineno;
  * EXPRESSION NODES
  * ───────────────────────────────────────────────────────────────────────── */
 
-/* Create a numeric literal node */
+/* When the scanner sees a float literal, it sets these before returning NUM.
+ * createNum() checks them so the parser doesn't need a new FNUM token type. */
+int   pendingFloatLit   = 0;   /* 1 = next NUM is actually a float */
+float pendingFloatValue = 0.0f;
+
+/* Create a numeric literal node.
+ * If the scanner flagged a pending float, produce NODE_FLOAT instead. */
 ASTNode* createNum(int value) {
+    if (pendingFloatLit) {
+        pendingFloatLit = 0;
+        return createFloat(pendingFloatValue);
+    }
     ASTNode* node = malloc(sizeof(ASTNode));
     node->type        = NODE_NUM;
     node->lineno      = yylineno;
     node->data.num    = value;
+    return node;
+}
+
+/* Create a float literal node */
+ASTNode* createFloat(float value) {
+    ASTNode* node = malloc(sizeof(ASTNode));
+    node->type        = NODE_FLOAT;
+    node->lineno      = yylineno;
+    node->data.fval   = value;
     return node;
 }
 
@@ -121,10 +140,14 @@ ASTNode* appendIdList(ASTNode* list, char* name) {
  * as a STMT_LIST.  e.g.  id_list(x→y→z) becomes
  *   STMT_LIST(DECL(x), STMT_LIST(DECL(y), DECL(z)))               */
 ASTNode* createMultiDecl(ASTNode* id_list) {
+    return createMultiDeclTyped(id_list, "int");
+}
+
+ASTNode* createMultiDeclTyped(ASTNode* id_list, char* type) {
     ASTNode* result = NULL;
     ASTNode* curr   = id_list;
     while (curr != NULL) {
-        ASTNode* decl = createDecl("int", curr->data.idlist.name);
+        ASTNode* decl = createDecl(type, curr->data.idlist.name);
         if (result == NULL) {
             result = decl;
         } else {
@@ -299,23 +322,29 @@ ASTNode* createBlock(ASTNode* stmt_list) {
 
 /* Create an array declaration  int arr[size]; */
 ASTNode* createArrayDecl(char* name, int size) {
+    return createArrayDeclTyped(name, size, "int");
+}
+
+ASTNode* createArrayDeclTyped(char* name, int size, char* type) {
     ASTNode* node = malloc(sizeof(ASTNode));
-    node->type                    = NODE_ARRAY_DECL;
-    node->lineno                  = yylineno;
-    node->data.array_decl.name    = strdup(name);
-    node->data.array_decl.size    = size;
-    node->data.array_decl.isParam = 0;
+    node->type                      = NODE_ARRAY_DECL;
+    node->lineno                    = yylineno;
+    node->data.array_decl.name      = strdup(name);
+    node->data.array_decl.varType   = strdup(type);
+    node->data.array_decl.size      = size;
+    node->data.array_decl.isParam   = 0;
     return node;
 }
 
 /* Create an array parameter node  int arr[]  (size unknown = 0) */
 ASTNode* createArrayParam(char* name) {
     ASTNode* node = malloc(sizeof(ASTNode));
-    node->type                    = NODE_ARRAY_DECL;
-    node->lineno                  = yylineno;
-    node->data.array_decl.name    = strdup(name);
-    node->data.array_decl.size    = 0;
-    node->data.array_decl.isParam = 1;
+    node->type                      = NODE_ARRAY_DECL;
+    node->lineno                    = yylineno;
+    node->data.array_decl.name      = strdup(name);
+    node->data.array_decl.varType   = strdup("int");
+    node->data.array_decl.size      = 0;
+    node->data.array_decl.isParam   = 1;
     return node;
 }
 
@@ -349,6 +378,11 @@ void printAST(ASTNode* node, int level) {
             printf("NUM: %d\n", node->data.num);
             break;
 
+        case NODE_FLOAT:
+            indent(level);
+            printf("FLOAT: %g\n", node->data.fval);
+            break;
+
         case NODE_VAR:
             indent(level);
             printf("VAR: %s\n", node->data.name);
@@ -370,105 +404,20 @@ void printAST(ASTNode* node, int level) {
             }
             indent(level);
             printf("BINOP: %s\n", opStr);
-            printAST(node->data.binop.left,  level + 1);
-            printAST(node->data.binop.right, level + 1);
-            break;
-        }
-
-        /* ── Statements ── */
-        case NODE_DECL:
-            indent(level);
-            printf("DECL: %s %s\n",
-                   node->data.decl.varType, node->data.decl.name);
-            break;
-
-        case NODE_ASSIGN:
-            indent(level);
-            if (node->data.assign.arrayLHS) {
-                printf("ASSIGN (array element)\n");
+            printAST(node->data.func_def.body, level + 2);
+            if (node->data.func_def.end_clause) {
                 indent(level + 1);
-                printf("LHS:\n");
-                printAST(node->data.assign.arrayLHS, level + 2);
-            } else {
-                printf("ASSIGN: %s\n", node->data.assign.var);
+                printf("END: %s\n",
+                    node->data.func_def.end_clause->data.name
+                    ? node->data.func_def.end_clause->data.name : "null");
             }
-            indent(level + 1);
-            printf("VALUE:\n");
-            printAST(node->data.assign.value, level + 2);
-            break;
-
-        case NODE_PRINT:
-            indent(level);
-            printf("PRINT\n");
-            printAST(node->data.expr, level + 1);
-            break;
-
-        case NODE_STMT_LIST:
-            /* Print each statement at the same depth — no extra indent */
-            printAST(node->data.stmtlist.stmt, level);
-            printAST(node->data.stmtlist.next, level);
-            break;
-
-        case NODE_ID_LIST:
-            indent(level);
-            printf("ID_LIST: %s\n", node->data.idlist.name);
-            printAST(node->data.idlist.next, level);
-            break;
-
-        /* ── Functions ── */
-        case NODE_PROGRAM:
-            indent(level);
-            printf("PROGRAM\n");
-            if (node->data.program.globals) {
-                indent(level + 1);
-                printf("GLOBALS:\n");
-                printAST(node->data.program.globals, level + 2);
-            }
-            if (node->data.program.funcs) {
-                indent(level + 1);
-                printf("FUNCTIONS:\n");
-                printAST(node->data.program.funcs, level + 2);
-            }
-            indent(level + 1);
-            printf("ENTRY:\n");
-            printAST(node->data.program.start, level + 2);
-            break;
-
-        case NODE_END_CLAUSE:
-            indent(level);
-            printf("END_CLAUSE: %s\n",
-                   node->data.name ? node->data.name : "null");
-            break;
-
-        case NODE_FUNC_DEF:
-            indent(level);
-            printf("FUNC_DEF: %s\n", node->data.func_def.name);
-            if (node->data.func_def.params) {
-                indent(level + 1);
-                printf("PARAMS:\n");
-                printAST(node->data.func_def.params, level + 2);
-            }
-            if (node->data.func_def.body) {
-                indent(level + 1);
-                printf("BODY:\n");
-                printAST(node->data.func_def.body, level + 2);
-            }
-            indent(level + 1);
-            printf("RETURNS: %s\n",
-                   node->data.func_def.end_clause &&
-                   node->data.func_def.end_clause->data.name
-                       ? node->data.func_def.end_clause->data.name
-                       : "null");
             break;
 
         case NODE_FUNC_CALL:
             indent(level);
-            printf("FUNC_CALL: %s\n", node->data.func_call.name);
-            if (node->data.func_call.args) {
-                indent(level + 1);
-                printf("ARGS:\n");
-                printAST(node->data.func_call.args, level + 2);
-            }
+            printf("CALL: %s\n", node->data.func_call.name);
+            if (node->data.func_call.args)
+                printAST(node->data.func_call.args, level + 1);
             break;
 
         case NODE_PARAM:
@@ -487,67 +436,61 @@ void printAST(ASTNode* node, int level) {
             break;
 
         case NODE_PROGRAM_START:
+        case NODE_BLOCK:
             indent(level);
-            printf("PROGRAM_START\n");
-            if (node->data.block.stmt_list) {
-                indent(level + 1);
-                printf("BODY:\n");
+            printf("BLOCK\n");
+            if (node->data.block.stmt_list)
                 printAST(node->data.block.stmt_list, level + 2);
-            }
             break;
 
-        /* ── Control flow ── */
+        case NODE_PROGRAM:
+            indent(level);
+            printf("PROGRAM\n");
+            if (node->data.program.globals)
+                printAST(node->data.program.globals, level + 2);
+            if (node->data.program.funcs)
+                printAST(node->data.program.funcs, level + 2);
+            printAST(node->data.program.start, level + 2);
+            break;
+
         case NODE_IF:
             indent(level);
             printf("IF\n");
-            indent(level + 1);
-            printf("CONDITION:\n");
             printAST(node->data.if_stmt.condition, level + 2);
-            indent(level + 1);
-            printf("THEN:\n");
             printAST(node->data.if_stmt.then_stmt, level + 2);
-            if (node->data.if_stmt.else_stmt) {
-                indent(level + 1);
-                printf("ELSE:\n");
+            if (node->data.if_stmt.else_stmt)
                 printAST(node->data.if_stmt.else_stmt, level + 2);
-            }
             break;
 
         case NODE_WHILE:
             indent(level);
             printf("WHILE\n");
-            indent(level + 1);
-            printf("CONDITION:\n");
             printAST(node->data.while_stmt.condition, level + 2);
-            indent(level + 1);
-            printf("BODY:\n");
             printAST(node->data.while_stmt.body, level + 2);
             break;
 
-        case NODE_BLOCK:
-            indent(level);
-            printf("BLOCK\n");
-            printAST(node->data.block.stmt_list, level + 1);
-            break;
-
-        /* ── Arrays ── */
         case NODE_ARRAY_DECL:
             indent(level);
-            if (node->data.array_decl.isParam) {
-                printf("ARRAY_PARAM: %s[]\n", node->data.array_decl.name);
-            } else {
-                printf("ARRAY_DECL: %s[%d]\n",
-                       node->data.array_decl.name,
-                       node->data.array_decl.size);
-            }
+            printf("ARRAY_DECL: %s[%d]\n",
+                   node->data.array_decl.name, node->data.array_decl.size);
             break;
 
         case NODE_ARRAY_INDEX:
             indent(level);
             printf("ARRAY_INDEX: %s\n", node->data.array_index.name);
-            indent(level + 1);
-            printf("INDEX:\n");
-            printAST(node->data.array_index.index, level + 2);
+            printAST(node->data.array_index.index, level + 1);
+            break;
+
+        case NODE_END_CLAUSE:
+            indent(level);
+            printf("END_CLAUSE: %s\n",
+                   node->data.name ? node->data.name : "null");
+            break;
+
+        default:
+            indent(level);
+            printf("(unknown node type %d)\n", node->type);
             break;
     }
+}
 }

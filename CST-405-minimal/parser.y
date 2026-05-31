@@ -30,16 +30,19 @@ ASTNode* root = NULL;          /* Root of the Abstract Syntax Tree */
  */
 %union {
     int num;                /* For integer literals */
+    float fnum;             /* For float literals   */
     char* str;              /* For identifiers */
     struct ASTNode* node;   /* For AST nodes */
 }
 
 /* TOKEN DECLARATIONS */
-%token <num> NUM            /* Number literal: carries integer value */
+%token <num> NUM            /* Integer literal: carries integer value */
+%token <fnum> FNUM          /* Float literal:   carries float value   */
 %token <str> ID             /* Identifier: carries string name */
-%token INT PRINT            /* Original keywords */
+%token INT FLOAT PRINT      /* Type keywords */
 %token FUNC PROGRAM_START   /* Function keywords */
 %token END NULLTOK          /* End-clause keywords */
+%token LE GE EQ NE          /* Comparison operators: <= >= == != */
 
 /* NON-TERMINAL TYPES */
 %type <node> program
@@ -54,8 +57,12 @@ ASTNode* root = NULL;          /* Root of the Abstract Syntax Tree */
 %type <node> expr
 %type <node> func_call arg_list
 
-/* OPERATOR PRECEDENCE */
-%left '+'
+/* OPERATOR PRECEDENCE (lowest to highest) */
+%left EQ NE
+%left '<' '>' LE GE
+%left '+' '-'
+%left '*' '/'
+%right UMINUS
 
 %%
 
@@ -168,6 +175,10 @@ param_list:
 /* SINGLE PARAMETER — "int x" */
 param_item:
     INT ID {
+        $$ = createParam($2);
+        free($2);
+    }
+    | FLOAT ID {
         $$ = createParam($2);
         free($2);
     }
@@ -307,8 +318,15 @@ decl:
     INT id_list ';' {
         $$ = createMultiDecl($2);
     }
-    | INT ID '[' NUM ']' ';' {         
+    | FLOAT id_list ';' {
+        $$ = createMultiDeclTyped($2, "float");
+    }
+    | INT ID '[' NUM ']' ';' {
         $$ = createArrayDecl($2, $4);
+        free($2);
+    }
+    | FLOAT ID '[' NUM ']' ';' {
+        $$ = createArrayDeclTyped($2, $4, "float");
         free($2);
     }
     | INT id_list error {
@@ -448,25 +466,57 @@ arg_list:
 
 expr:
     NUM {
-        /* Integer literal */
         $$ = createNum($1);
     }
+    | FNUM {
+        $$ = createFloat($1);
+    }
     | ID {
-        /* Variable reference */
         $$ = createVar($1);
         free($1);
     }
+    | func_call {
+        $$ = $1;
+    }
+    | ID '[' expr ']' {
+        $$ = createArrayIndex($1, $3);
+        free($1);
+    }
     | expr '+' expr {
-        /* Binary addition — left-associative via %left above */
         $$ = createBinOp('+', $1, $3);
     }
-    | '(' expr ')' {
-        /* Parenthesized expression */
-        $$ = $2;
+    | expr '-' expr {
+        $$ = createBinOp('-', $1, $3);
     }
-    | ID '[' expr ']' {   
-        $$ = createArrayIndex($1, $3);
-        free($1); 
+    | expr '*' expr {
+        $$ = createBinOp('*', $1, $3);
+    }
+    | expr '/' expr {
+        $$ = createBinOp('/', $1, $3);
+    }
+    | expr '<' expr {
+        $$ = createBinOp('<', $1, $3);
+    }
+    | expr '>' expr {
+        $$ = createBinOp('>', $1, $3);
+    }
+    | expr LE expr {
+        $$ = createBinOp('l', $1, $3);
+    }
+    | expr GE expr {
+        $$ = createBinOp('g', $1, $3);
+    }
+    | expr EQ expr {
+        $$ = createBinOp('e', $1, $3);
+    }
+    | expr NE expr {
+        $$ = createBinOp('n', $1, $3);
+    }
+    | '-' expr %prec UMINUS {
+        $$ = createBinOp('u', $2, NULL);
+    }
+    | '(' expr ')' {
+        $$ = $2;
     }
     ;
 

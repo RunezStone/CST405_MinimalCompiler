@@ -46,6 +46,11 @@ int yycolumn = 1;
     return INT;
 }
 
+"float"         {
+    if (displayTokens) printf("  TOKEN: FLOAT keyword\n");
+    return FLOAT;
+}
+
 "print"         {
     if (displayTokens) printf("  TOKEN: PRINT keyword\n");
     return PRINT;
@@ -77,22 +82,37 @@ int yycolumn = 1;
     return ID;
 }
 
+[0-9]+\.[0-9]+  {
+    if (displayTokens) printf("  TOKEN: FNUM %s\n", yytext);
+    yylval.fnum = atof(yytext);
+    return FNUM;
+}
+
 [0-9]+          {
     if (displayTokens) printf("  TOKEN: NUM %s\n", yytext);
     yylval.num = atoi(yytext);
     return NUM;
 }
 
+"<="            { if (displayTokens) printf("  TOKEN: LE\n");   return LE; }
+">="            { if (displayTokens) printf("  TOKEN: GE\n");   return GE; }
+"=="            { if (displayTokens) printf("  TOKEN: EQ\n");   return EQ; }
+"!="            { if (displayTokens) printf("  TOKEN: NE\n");   return NE; }
 "+"             { if (displayTokens) printf("  TOKEN: '+'\n");  return '+'; }
+"-"             { if (displayTokens) printf("  TOKEN: '-'\n");  return '-'; }
+"*"             { if (displayTokens) printf("  TOKEN: '*'\n");  return '*'; }
+"/"             { if (displayTokens) printf("  TOKEN: '/'\n");  return '/'; }
+"<"             { if (displayTokens) printf("  TOKEN: '<'\n");  return '<'; }
+">"             { if (displayTokens) printf("  TOKEN: '>'\n");  return '>'; }
 "="             { if (displayTokens) printf("  TOKEN: '='\n");  return '='; }
 ";"             { if (displayTokens) printf("  TOKEN: ';'\n");  return ';'; }
 "("             { if (displayTokens) printf("  TOKEN: '('\n");  return '('; }
 ")"             { if (displayTokens) printf("  TOKEN: ')'\n");  return ')'; }
 ","             { if (displayTokens) printf("  TOKEN: ','\n");  return ','; }
-"["  { if (displayTokens) printf("  TOKEN: '['\n");  return '['; }
-"]"  { if (displayTokens) printf("  TOKEN: ']'\n");  return ']'; }
+"["             { if (displayTokens) printf("  TOKEN: '['\n");  return '['; }
+"]"             { if (displayTokens) printf("  TOKEN: ']'\n");  return ']'; }
 
-[ \t]           { }
+[ \t\r]         { }
 \n              { yycolumn = 1; }
 
 .               {
