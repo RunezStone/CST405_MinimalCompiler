@@ -16,38 +16,6 @@ static int getNextTemp() {
     return reg;
 }
 
-/* ── Float support ──────────────────────────────────────────────────────── */
-/* Float temp register counter — uses even $f registers: $f0,$f2,$f4,... */
-static int floatReg = 0;
-
-static int getNextFloatReg() {
-    int reg = floatReg;
-    floatReg += 2;
-    if (floatReg > 30) floatReg = 0;
-    return reg;
-}
-
-/* Set by genExpr — 1 if the last expression produced a float result */
-static int lastExprIsFloat = 0;
-
-/* Float constant pool — literals are stored in .data and loaded at runtime */
-#define MAX_FLOAT_CONSTS 64
-static float floatConsts[MAX_FLOAT_CONSTS];
-static int   floatConstCount = 0;
-
-/* Add a float constant to the pool; returns its index */
-static int addFloatConst(float val) {
-    for (int i = 0; i < floatConstCount; i++)
-        if (floatConsts[i] == val) return i;
-    if (floatConstCount >= MAX_FLOAT_CONSTS) {
-        fprintf(stderr, "CODEGEN ERROR: float constant pool full\n");
-        return 0;
-    }
-    floatConsts[floatConstCount++] = val;
-    return floatConstCount - 1;
-}
-
-
 /* ─────────────────────────────────────────────────────────────────────────
  * ARGUMENT REGISTER TRACKING
  * Collect up to 4 arguments for a pending function call, then emit
@@ -69,17 +37,6 @@ static void genExpr(ASTNode* node) {
         case NODE_NUM: {
             int reg = getNextTemp();
             fprintf(output, "    li $t%d, %d\n", reg, node->data.num);
-            lastExprIsFloat = 0;
-            break;
-        }
-
-        case NODE_FLOAT: {
-            int idx = addFloatConst(node->data.fval);
-            int addrReg = getNextTemp();
-            int freg = getNextFloatReg();
-            fprintf(output, "    la   $t%d, _fc%d\n", addrReg, idx);
-            fprintf(output, "    lwc1 $f%d, 0($t%d)\n", freg, addrReg);
-            lastExprIsFloat = 1;
             break;
         }
 
@@ -91,156 +48,48 @@ static void genExpr(ASTNode* node) {
                     node->data.name);
                 exit(1);
             }
-            char* type = getVarType(node->data.name);
-            if (type && strcmp(type, "float") == 0) {
-                int freg = getNextFloatReg();
-                fprintf(output, "    lwc1 $f%d, %d($sp)   # float %s\n",
-                        freg, offset, node->data.name);
-                lastExprIsFloat = 1;
-            } else {
-                int reg = getNextTemp();
-                fprintf(output, "    lw $t%d, %d($sp)\n", reg, offset);
-                lastExprIsFloat = 0;
-            }
+            int reg = getNextTemp();
+            fprintf(output, "    lw $t%d, %d($sp)\n", reg, offset);
             break;
         }
 
         case NODE_BINOP: {
-            /* Handle unary minus separately (right operand is NULL) */
-            if (node->data.binop.op == 'u') {
-                genExpr(node->data.binop.left);
-                if (lastExprIsFloat) {
-                    int freg = floatReg - 2; if (freg < 0) freg = 30;
-                    fprintf(output, "    neg.s $f%d, $f%d\n", freg, freg);
-                } else {
-                    int reg = tempReg - 1;
-                    fprintf(output, "    neg $t%d, $t%d\n", reg, reg);
-                }
-                break;
-            }
-
             genExpr(node->data.binop.left);
-            int leftIsFloat = lastExprIsFloat;
-            int leftTReg = tempReg - 1;
-            int leftFReg = floatReg - 2; if (leftFReg < 0) leftFReg = 30;
-
+            int leftReg = tempReg - 1;
             genExpr(node->data.binop.right);
-            int rightIsFloat = lastExprIsFloat;
-            int rightTReg = tempReg - 1;
-            int rightFReg = floatReg - 2; if (rightFReg < 0) rightFReg = 30;
+            int rightReg = tempReg - 1;
 
-            int useFloat = leftIsFloat || rightIsFloat;
-
-            if (useFloat) {
-                /* Promote integer operands to float if mixed */
-                if (!leftIsFloat) {
-                    int freg = getNextFloatReg();
-                    fprintf(output, "    mtc1  $t%d, $f%d\n", leftTReg, freg);
-                    fprintf(output, "    cvt.s.w $f%d, $f%d\n", freg, freg);
-                    leftFReg = freg;
-                }
-                if (!rightIsFloat) {
-                    int freg = getNextFloatReg();
-                    fprintf(output, "    mtc1  $t%d, $f%d\n", rightTReg, freg);
-                    fprintf(output, "    cvt.s.w $f%d, $f%d\n", freg, freg);
-                    rightFReg = freg;
-                }
-                switch (node->data.binop.op) {
-                    case '+': fprintf(output, "    add.s $f%d, $f%d, $f%d\n", leftFReg, leftFReg, rightFReg); break;
-                    case '-': fprintf(output, "    sub.s $f%d, $f%d, $f%d\n", leftFReg, leftFReg, rightFReg); break;
-                    case '*': fprintf(output, "    mul.s $f%d, $f%d, $f%d\n", leftFReg, leftFReg, rightFReg); break;
-                    case '/': fprintf(output, "    div.s $f%d, $f%d, $f%d\n", leftFReg, leftFReg, rightFReg); break;
-                    default: break;
-                }
-                floatReg = leftFReg + 2;
-                lastExprIsFloat = 1;
-            } else {
-                switch (node->data.binop.op) {
-                    case '+':
-                        fprintf(output, "    add $t%d, $t%d, $t%d\n",
-                                leftTReg, leftTReg, rightTReg);
-                        break;
-                    case '-':
-                        fprintf(output, "    sub $t%d, $t%d, $t%d\n",
-                                leftTReg, leftTReg, rightTReg);
-                        break;
-                    case '*':
-                        fprintf(output, "    mul $t%d, $t%d, $t%d\n",
-                                leftTReg, leftTReg, rightTReg);
-                        break;
-                    case '/':
-                        fprintf(output, "    div $t%d, $t%d\n",
-                                leftTReg, rightTReg);
-                        fprintf(output, "    mflo $t%d\n", leftTReg);
-                        break;
-                    case '<':
-                        fprintf(output, "    slt $t%d, $t%d, $t%d\n",
-                                leftTReg, leftTReg, rightTReg);
-                        break;
-                    case '>':
-                        fprintf(output, "    sgt $t%d, $t%d, $t%d\n",
-                                leftTReg, leftTReg, rightTReg);
-                        break;
-                    case 'l': /* <= */
-                        fprintf(output, "    sle $t%d, $t%d, $t%d\n",
-                                leftTReg, leftTReg, rightTReg);
-                        break;
-                    case 'g': /* >= */
-                        fprintf(output, "    sge $t%d, $t%d, $t%d\n",
-                                leftTReg, leftTReg, rightTReg);
-                        break;
-                    case 'e': /* == */
-                        fprintf(output, "    seq $t%d, $t%d, $t%d\n",
-                                leftTReg, leftTReg, rightTReg);
-                        break;
-                    case 'n': /* != */
-                        fprintf(output, "    sne $t%d, $t%d, $t%d\n",
-                                leftTReg, leftTReg, rightTReg);
-                        break;
-                    default:
-                        break;
-                }
-                tempReg = leftTReg + 1;
-                lastExprIsFloat = 0;
+            switch (node->data.binop.op) {
+                case '+':
+                    fprintf(output, "    add $t%d, $t%d, $t%d\n",
+                            leftReg, leftReg, rightReg);
+                    break;
+                case '-':
+                    fprintf(output, "    sub $t%d, $t%d, $t%d\n",
+                            leftReg, leftReg, rightReg);
+                    break;
+                case '*':
+                    fprintf(output, "    mul $t%d, $t%d, $t%d\n",
+                            leftReg, leftReg, rightReg);
+                    break;
+                case '/':
+                    fprintf(output, "    div $t%d, $t%d\n",
+                            leftReg, rightReg);
+                    fprintf(output, "    mflo $t%d\n", leftReg);
+                    break;
+                default:
+                    break;
             }
+            tempReg = leftReg + 1;
             break;
         }
 
-        /* ── NEW: function call as an expression ── */
+       
         case NODE_FUNC_CALL:
             genFuncCall(node);
             /* Result is in $v0; move to next temp so the caller can use it */
             fprintf(output, "    move $t%d, $v0\n", getNextTemp());
             break;
-
-        case NODE_ARRAY_INDEX: {
-    /* Evaluate the index expression */
-    genExpr(node->data.array_index.index);
-    int indexReg = tempReg - 1;
-
-    /* Compute byte offset: index * 4 */
-    int addrReg = getNextTemp();
-    fprintf(output, "    sll  $t%d, $t%d, 2\n", addrReg, indexReg);
-
-    /* Load: use lwc1 for float arrays, lw for int arrays */
-    char* atype = getVarType(node->data.array_index.name);
-    if (atype && strcmp(atype, "float") == 0) {
-        int freg = getNextFloatReg();
-        fprintf(output, "    lwc1 $f%d, %s($t%d)   # float %s[i]\n",
-                freg, node->data.array_index.name, addrReg,
-                node->data.array_index.name);
-        lastExprIsFloat = 1;
-    } else {
-        int destReg = getNextTemp();
-        fprintf(output, "    lw   $t%d, %s($t%d)   # %s[i]\n",
-                destReg,
-                node->data.array_index.name,
-                addrReg,
-                node->data.array_index.name);
-        lastExprIsFloat = 0;
-    }
-    break;
-}
 
         default:
             break;
@@ -301,7 +150,7 @@ static void genFuncDef(ASTNode* node) {
     int frameSize = 128;
 
     /* ── Function label ── */
-    fprintf(output, "\n# -- Function: %s --\n", node->data.func_def.name);
+    fprintf(output, "\n# ── Function: %s ──\n", node->data.func_def.name);
     fprintf(output, "func_%s:\n", node->data.func_def.name);
 
     /* ── Prologue: allocate frame, save $ra ── */
@@ -384,52 +233,8 @@ void genStmt(ASTNode* node) {
                     node->data.decl.name, offset);
             break;
         }
-        case NODE_ARRAY_DECL: {
-    if (!node->data.array_decl.isParam) {
-        int bytes  = node->data.array_decl.size * 4;
-        char* atype = node->data.array_decl.varType
-                      ? node->data.array_decl.varType : "int";
-        int offset = addVar(node->data.array_decl.name, atype);
-        fprintf(output, "    # Array %s %s[%d] at offset %d (%d bytes)\n",
-                atype,
-                node->data.array_decl.name,
-                node->data.array_decl.size,
-                offset, bytes);
-    }
-    break;
-}
 
         case NODE_ASSIGN: {
-            /* ── Array store: arr[i] = expr ── */        /* ← ADD THIS BLOCK */
-    if (node->data.assign.arrayLHS) {
-        char* arrName = node->data.assign.arrayLHS->data.array_index.name;
-
-        /* Evaluate the index expression */
-        genExpr(node->data.assign.arrayLHS->data.array_index.index);
-        int indexReg = tempReg - 1;
-
-        /* Evaluate the RHS value */
-        genExpr(node->data.assign.value);
-        int valTReg  = tempReg - 1;
-        int valFReg  = floatReg - 2; if (valFReg < 0) valFReg = 30;
-        int isFloat  = lastExprIsFloat;
-
-        /* Compute byte offset: index * 4 */
-        int addrReg = getNextTemp();
-        fprintf(output, "    sll  $t%d, $t%d, 2\n", addrReg, indexReg);
-
-        /* Store: use swc1 for floats, sw for ints */
-        if (isFloat) {
-            fprintf(output, "    swc1 $f%d, %s($t%d)   # float %s[i] = ...\n",
-                    valFReg, arrName, addrReg, arrName);
-        } else {
-            fprintf(output, "    sw   $t%d, %s($t%d)   # %s[i] = ...\n",
-                    valTReg, arrName, addrReg, arrName);
-        }
-        tempReg  = 0;
-        floatReg = 0;
-        break;
-    }
             /* ── NEW: handle func call on RHS ── */
             if (node->data.assign.value &&
                 node->data.assign.value->type == NODE_FUNC_CALL) {
@@ -454,43 +259,27 @@ void genStmt(ASTNode* node) {
                     exit(1);
                 }
                 genExpr(node->data.assign.value);
-                char* varType = getVarType(node->data.assign.var);
-                if (varType && strcmp(varType, "float") == 0) {
-                    int freg = floatReg - 2; if (freg < 0) freg = 30;
-                    fprintf(output, "    swc1 $f%d, %d($sp)   # %s = ...\n",
-                            freg, offset, node->data.assign.var);
-                } else {
-                    fprintf(output, "    sw   $t%d, %d($sp)   # %s = ...\n",
-                            tempReg - 1, offset, node->data.assign.var);
-                }
+                fprintf(output, "    sw   $t%d, %d($sp)   # %s = ...\n",
+                        tempReg - 1, offset, node->data.assign.var);
                 tempReg = 0;
-                floatReg = 0;
             }
             break;
         }
 
         case NODE_PRINT:
             genExpr(node->data.expr);
-            if (lastExprIsFloat) {
-                int freg = floatReg - 2; if (freg < 0) freg = 30;
-                fprintf(output, "    # Print float\n");
-                fprintf(output, "    mov.s $f12, $f%d\n", freg);
-                fprintf(output, "    li    $v0, 2\n");
-                fprintf(output, "    syscall\n");
-            } else {
-                fprintf(output, "    # Print integer\n");
-                fprintf(output, "    move $a0, $t%d\n", tempReg - 1);
-                fprintf(output, "    li   $v0, 1\n");
-                fprintf(output, "    syscall\n");
-            }
+            fprintf(output, "    # Print integer\n");
+            fprintf(output, "    move $a0, $t%d\n", tempReg - 1);
+            fprintf(output, "    li   $v0, 1\n");
+            fprintf(output, "    syscall\n");
             fprintf(output, "    # Print newline\n");
             fprintf(output, "    li   $v0, 11\n");
             fprintf(output, "    li   $a0, 10\n");
             fprintf(output, "    syscall\n");
             tempReg = 0;
-            floatReg = 0;
             break;
 
+        /* ── NEW: standalone function call statement ── */
         case NODE_FUNC_CALL:
             genFuncCall(node);
             break;
@@ -505,6 +294,9 @@ void genStmt(ASTNode* node) {
     }
 }
 
+/* ─────────────────────────────────────────────────────────────────────────
+ * NEW: WALK A STMT_LIST OF FUNCTION DEFINITIONS
+ * ───────────────────────────────────────────────────────────────────────── */
 static void genFuncList(ASTNode* node) {
     if (!node) return;
     if (node->type == NODE_STMT_LIST) {
@@ -515,73 +307,67 @@ static void genFuncList(ASTNode* node) {
     }
 }
 
+/* ─────────────────────────────────────────────────────────────────────────
+ * TOP-LEVEL MIPS GENERATION
+ * ───────────────────────────────────────────────────────────────────────── */
 void generateMIPS(ASTNode* root, const char* filename) {
-    char tmpName[256];
-    snprintf(tmpName, sizeof(tmpName), "%s.tmp", filename);
+    output = fopen(filename, "w");
+    if (!output) {
+        fprintf(stderr, "CODEGEN ERROR: Cannot open output file '%s'\n",
+                filename);
+        exit(1);
+    }
 
-    FILE* finalOut = fopen(filename, "w");
-    if (!finalOut) { fprintf(stderr, "CODEGEN ERROR: Cannot open %s\n", filename); exit(1); }
-    output = fopen(tmpName, "w");
-    if (!output) { fprintf(stderr, "CODEGEN ERROR: Cannot open temp %s\n", tmpName); exit(1); }
-
-    floatConstCount = 0;
-    floatReg = 0;
-
+    /* ── MIPS file header ── */
+    fprintf(output, "# Generated MIPS Assembly\n");
+    fprintf(output, "# ─────────────────────────────────────\n\n");
+    fprintf(output, ".data\n\n");
     fprintf(output, ".text\n");
     fprintf(output, ".globl main\n");
 
+    /* ── UPDATED: handle NODE_PROGRAM root ── */
     if (root && root->type == NODE_PROGRAM) {
+
+        /* 1. Emit all function definitions first (before main) */
         genFuncList(root->data.program.funcs);
+
+        /* 2. Emit the Program_Start block as 'main' */
         fprintf(output, "\nmain:\n");
         fprintf(output, "    # Allocate global stack frame\n");
         fprintf(output, "    addi $sp, $sp, -400\n\n");
+
+        /* Reset symbol table for Program_Start's local variables */
         initSymTab();
         tempReg = 0;
+
+        /* Generate global declarations so they land in the symbol table */
         if (root->data.program.globals)
             genStmt(root->data.program.globals);
+
+        /* Generate Program_Start body */
         ASTNode* ps = root->data.program.start;
         if (ps && ps->type == NODE_PROGRAM_START)
             genStmt(ps->data.block.stmt_list);
+
+        /* Program exit */
         fprintf(output, "\n    # Exit program\n");
         fprintf(output, "    addi $sp, $sp, 400\n");
         fprintf(output, "    li   $v0, 10\n");
         fprintf(output, "    syscall\n");
+
     } else {
+        /* Fallback: old flat stmt_list root (shouldn't happen with
+         * the new parser but keeps backwards compatibility)        */
         fprintf(output, "\nmain:\n");
         fprintf(output, "    addi $sp, $sp, -400\n\n");
-        initSymTab(); tempReg = 0;
+        initSymTab();
+        tempReg = 0;
         genStmt(root);
         fprintf(output, "\n    addi $sp, $sp, 400\n");
         fprintf(output, "    li   $v0, 10\n");
         fprintf(output, "    syscall\n");
     }
-    fclose(output);
 
-    fprintf(finalOut, "# Generated MIPS Assembly\n# ------------\n\n.data\n");
-    if (root && root->type == NODE_PROGRAM) {
-        ASTNode* g = root->data.program.globals;
-        while (g) {
-            ASTNode* decl = (g->type == NODE_STMT_LIST) ? g->data.stmtlist.stmt : g;
-            if (decl && decl->type == NODE_ARRAY_DECL)
-                fprintf(finalOut, "%s: .space %d\n", decl->data.array_decl.name, decl->data.array_decl.size * 4);
-            g = (g->type == NODE_STMT_LIST) ? g->data.stmtlist.next : NULL;
-        }
-    }
-    for (int i = 0; i < floatConstCount; i++) {
-        char fbuf[32];
-        snprintf(fbuf, sizeof(fbuf), "%g", floatConsts[i]);
-        /* SPIM requires a decimal point in .float literals */
-        if (!strchr(fbuf, '.') && !strchr(fbuf, 'e'))
-            strncat(fbuf, ".0", sizeof(fbuf) - strlen(fbuf) - 1);
-        fprintf(finalOut, "_fc%d: .float %s\n", i, fbuf);
-    }
-    fprintf(finalOut, "\n");
-    FILE* tmp = fopen(tmpName, "r");
-    if (tmp) {
-        char buf[4096]; size_t n;
-        while ((n = fread(buf, 1, sizeof(buf), tmp)) > 0) fwrite(buf, 1, n, finalOut);
-        fclose(tmp); remove(tmpName);
-    }
-    fclose(finalOut);
-    printf("  MIPS code written to '%s'\n", filename);
+    fclose(output);
+    printf("  ✓ MIPS code written to '%s'\n", filename);
 }

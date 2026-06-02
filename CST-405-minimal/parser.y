@@ -42,7 +42,6 @@ ASTNode* root = NULL;          /* Root of the Abstract Syntax Tree */
 %token INT FLOAT PRINT      /* Type keywords */
 %token FUNC PROGRAM_START   /* Function keywords */
 %token END NULLTOK          /* End-clause keywords */
-%token LE GE EQ NE          /* Comparison operators: <= >= == != */
 
 /* NON-TERMINAL TYPES */
 %type <node> program
@@ -57,12 +56,8 @@ ASTNode* root = NULL;          /* Root of the Abstract Syntax Tree */
 %type <node> expr
 %type <node> func_call arg_list
 
-/* OPERATOR PRECEDENCE (lowest to highest) */
-%left EQ NE
-%left '<' '>' LE GE
-%left '+' '-'
-%left '*' '/'
-%right UMINUS
+/* OPERATOR PRECEDENCE */
+%left '+'
 
 %%
 
@@ -326,7 +321,7 @@ decl:
         free($2);
     }
     | FLOAT ID '[' NUM ']' ';' {
-        $$ = createArrayDeclTyped($2, $4, "float");
+        $$ = createArrayDecl($2, $4);
         free($2);
     }
     | INT id_list error {
@@ -466,57 +461,29 @@ arg_list:
 
 expr:
     NUM {
+        /* Integer literal */
         $$ = createNum($1);
     }
     | FNUM {
+        /* Float literal */
         $$ = createFloat($1);
     }
     | ID {
+        /* Variable reference */
         $$ = createVar($1);
         free($1);
     }
-    | func_call {
-        $$ = $1;
-    }
-    | ID '[' expr ']' {
-        $$ = createArrayIndex($1, $3);
-        free($1);
-    }
     | expr '+' expr {
+        /* Binary addition — left-associative via %left above */
         $$ = createBinOp('+', $1, $3);
     }
-    | expr '-' expr {
-        $$ = createBinOp('-', $1, $3);
-    }
-    | expr '*' expr {
-        $$ = createBinOp('*', $1, $3);
-    }
-    | expr '/' expr {
-        $$ = createBinOp('/', $1, $3);
-    }
-    | expr '<' expr {
-        $$ = createBinOp('<', $1, $3);
-    }
-    | expr '>' expr {
-        $$ = createBinOp('>', $1, $3);
-    }
-    | expr LE expr {
-        $$ = createBinOp('l', $1, $3);
-    }
-    | expr GE expr {
-        $$ = createBinOp('g', $1, $3);
-    }
-    | expr EQ expr {
-        $$ = createBinOp('e', $1, $3);
-    }
-    | expr NE expr {
-        $$ = createBinOp('n', $1, $3);
-    }
-    | '-' expr %prec UMINUS {
-        $$ = createBinOp('u', $2, NULL);
-    }
     | '(' expr ')' {
+        /* Parenthesized expression */
         $$ = $2;
+    }
+    | ID '[' expr ']' {   
+        $$ = createArrayIndex($1, $3);
+        free($1); 
     }
     ;
 
