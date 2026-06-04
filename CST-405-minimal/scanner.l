@@ -94,10 +94,6 @@ int yycolumn = 1;
     return NUM;
 }
 
-"<="            { if (displayTokens) printf("  TOKEN: LE\n");   return LE; }
-">="            { if (displayTokens) printf("  TOKEN: GE\n");   return GE; }
-"=="            { if (displayTokens) printf("  TOKEN: EQ\n");   return EQ; }
-"!="            { if (displayTokens) printf("  TOKEN: NE\n");   return NE; }
 "+"             { if (displayTokens) printf("  TOKEN: '+'\n");  return '+'; }
 "-"             { if (displayTokens) printf("  TOKEN: '-'\n");  return '-'; }
 "*"             { if (displayTokens) printf("  TOKEN: '*'\n");  return '*'; }

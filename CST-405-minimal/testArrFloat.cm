@@ -1,7 +1,9 @@
 float x;
 float y;
 float z;
+
 float arr[3];
+
 
 Program_Start()
     x = 3.14;
@@ -10,4 +12,6 @@ Program_Start()
     arr[1] = y;
     print(z);
     print(arr[1]);
+
+
 end null;

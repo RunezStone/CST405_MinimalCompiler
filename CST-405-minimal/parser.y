@@ -57,7 +57,9 @@ ASTNode* root = NULL;          /* Root of the Abstract Syntax Tree */
 %type <node> func_call arg_list
 
 /* OPERATOR PRECEDENCE */
-%left '+'
+%left '+' '-'
+%left '*' '/'
+%right UMINUS
 
 %%
 
@@ -474,8 +476,19 @@ expr:
         free($1);
     }
     | expr '+' expr {
-        /* Binary addition — left-associative via %left above */
         $$ = createBinOp('+', $1, $3);
+    }
+    | expr '-' expr {
+        $$ = createBinOp('-', $1, $3);
+    }
+    | expr '*' expr {
+        $$ = createBinOp('*', $1, $3);
+    }
+    | expr '/' expr {
+        $$ = createBinOp('/', $1, $3);
+    }
+    | '-' expr %prec UMINUS {
+        $$ = createBinOp('u', $2, NULL);
     }
     | '(' expr ')' {
         /* Parenthesized expression */

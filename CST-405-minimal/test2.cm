@@ -1,0 +1,22 @@
+int a;
+int b;
+int result;
+
+
+func add(num1, num2)
+    int result;
+    result = num1 + num2;
+    end result;
+
+
+Program_Start()
+    a = 10;
+    b = 3;
+    result = (a + b) * (a - b) / 2;
+    print(result);
+
+    a = 4;
+    b = 5;
+    b = add(a,b);
+    print(b);
+end null;

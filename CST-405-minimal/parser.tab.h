@@ -64,11 +64,7 @@ extern int yydebug;
     PROGRAM_START = 265,           /* PROGRAM_START  */
     END = 266,                     /* END  */
     NULLTOK = 267,                 /* NULLTOK  */
-    LE = 268,                      /* LE  */
-    GE = 269,                      /* GE  */
-    EQ = 270,                      /* EQ  */
-    NE = 271,                      /* NE  */
-    UMINUS = 272                   /* UMINUS  */
+    UMINUS = 268                   /* UMINUS  */
   };
   typedef enum yytokentype yytoken_kind_t;
 #endif
@@ -84,7 +80,7 @@ union YYSTYPE
     char* str;              /* For identifiers */
     struct ASTNode* node;   /* For AST nodes */
 
-#line 88 "parser.tab.h"
+#line 84 "parser.tab.h"
 
 };
 typedef union YYSTYPE YYSTYPE;
