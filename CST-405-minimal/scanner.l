@@ -51,6 +51,11 @@ int yycolumn = 1;
     return FLOAT;
 }
 
+"struct"        {                                           
+    if (displayTokens) printf("  TOKEN: STRUCT keyword\n");
+    return STRUCT;
+}
+
 "print"         {
     if (displayTokens) printf("  TOKEN: PRINT keyword\n");
     return PRINT;
@@ -107,6 +112,8 @@ int yycolumn = 1;
 ","             { if (displayTokens) printf("  TOKEN: ','\n");  return ','; }
 "["             { if (displayTokens) printf("  TOKEN: '['\n");  return '['; }
 "]"             { if (displayTokens) printf("  TOKEN: ']'\n");  return ']'; }
+"."             { if (displayTokens) printf("  TOKEN: '.'\n");  return DOT; }   
+"&"             { if (displayTokens) printf("  TOKEN: '&'\n");  return AMP; }   
 
 [ \t\r]         { }
 \n              { yycolumn = 1; }

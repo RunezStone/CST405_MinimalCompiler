@@ -5,7 +5,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#define NODE_ARRAY_INDEX NODE_ARRAY_INDEX,
 #include "ast.h"
+#undef NODE_ARRAY_INDEX
 
 /* Line number provided by the scanner */
 extern int yylineno;
@@ -358,6 +360,44 @@ ASTNode* createArrayIndex(char* name, ASTNode* index) {
     return node;
 }
 
+ASTNode* makeStructDef(char* name, ASTNode* fields) {
+    ASTNode* node = malloc(sizeof(ASTNode));
+    node->type                  = NODE_STRUCT_DEF;
+    node->lineno                = yylineno;
+    node->data.struct_def.name   = strdup(name);
+    node->data.struct_def.fields = fields;
+    return node;
+}
+
+ASTNode* makeFieldDecl(char* name, char* type) {
+    ASTNode* node = malloc(sizeof(ASTNode));
+    node->type                 = NODE_FIELD_DECL;
+    node->lineno               = yylineno;
+    node->data.field_decl.name = strdup(name);
+    node->data.field_decl.type = strdup(type);
+    return node;
+}
+
+ASTNode* appendField(ASTNode* list, ASTNode* field) {
+    return createStmtList(list, field);
+}
+
+ASTNode* makeMemberAccess(ASTNode* base, char* field) {
+    ASTNode* node = malloc(sizeof(ASTNode));
+    node->type                      = NODE_MEMBER_ACCESS;
+    node->lineno                    = yylineno;
+    node->data.member_access.base   = base;
+    node->data.member_access.field  = strdup(field);
+    return node;
+}
+
+ASTNode* makeAddrOf(ASTNode* expr) {
+    ASTNode* node = malloc(sizeof(ASTNode));
+    node->type              = NODE_ADDR_OF;
+    node->lineno            = yylineno;
+    node->data.addr_of.expr = expr;
+    return node;
+}
 /* ─────────────────────────────────────────────────────────────────────────
  * printAST  — pretty-print the entire tree (for debugging)
  * ───────────────────────────────────────────────────────────────────────── */
@@ -486,6 +526,31 @@ void printAST(ASTNode* node, int level) {
             printf("END_CLAUSE: %s\n",
                    node->data.name ? node->data.name : "null");
             break;
+
+        case NODE_STRUCT_DEF:
+    indent(level);
+    printf("STRUCT_DEF: %s\n", node->data.struct_def.name);
+    printAST(node->data.struct_def.fields, level + 1);
+    break;
+
+case NODE_FIELD_DECL:
+    indent(level);
+    printf("FIELD_DECL: %s %s\n",
+           node->data.field_decl.type,
+           node->data.field_decl.name);
+    break;
+
+case NODE_MEMBER_ACCESS:
+    indent(level);
+    printf("MEMBER_ACCESS: .%s\n", node->data.member_access.field);
+    printAST(node->data.member_access.base, level + 1);
+    break;
+
+case NODE_ADDR_OF:
+    indent(level);
+    printf("ADDR_OF\n");
+    printAST(node->data.addr_of.expr, level + 1);
+    break;
 
         default:
             indent(level);

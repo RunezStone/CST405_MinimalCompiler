@@ -49,7 +49,13 @@ typedef enum {
 
     /* ── Arrays ── */
     NODE_ARRAY_DECL,    /* Array declaration           e.g. int arr[10] */
-    NODE_ARRAY_INDEX    /* Array element access        e.g. arr[i]      */
+    NODE_ARRAY_INDEX,   /* Array element access        e.g. arr[i]      */
+
+    /* ── Structs ── */        /* ← ADD THESE */
+    NODE_STRUCT_DEF,
+    NODE_FIELD_DECL,
+    NODE_MEMBER_ACCESS,
+    NODE_ADDR_OF
 } NodeType;
 
 
@@ -193,6 +199,29 @@ typedef struct ASTNode {
             struct ASTNode* index;  /* Index expression    */
         } array_index;
 
+        /* NODE_STRUCT_DEF ─ struct definition */
+    struct {
+    char*           name;    /* struct type name      */
+    struct ASTNode* fields;  /* linked list of fields */
+} struct_def;
+
+/* NODE_FIELD_DECL ─ single field inside a struct */
+struct {
+    char* name;    /* field name */
+    char* type;    /* field type e.g. "int" */
+} field_decl;
+
+/* NODE_MEMBER_ACCESS ─ expr.field */
+struct {
+    struct ASTNode* base;   /* the struct variable   */
+    char*           field;  /* field name            */
+} member_access;
+
+/* NODE_ADDR_OF ─ &expr */
+struct {
+    struct ASTNode* expr;
+} addr_of;
+
     } data;
 
 } ASTNode;
@@ -248,6 +277,13 @@ ASTNode* createArrayDecl(char* name, int size);
 ASTNode* createArrayDeclTyped(char* name, int size, char* type);
 ASTNode* createArrayParam(char* name);
 ASTNode* createArrayIndex(char* name, ASTNode* index);
+
+/* Structs */
+ASTNode* makeStructDef(char* name, ASTNode* fields);
+ASTNode* makeFieldDecl(char* name, char* type);
+ASTNode* appendField(ASTNode* list, ASTNode* field);
+ASTNode* makeMemberAccess(ASTNode* base, char* field);
+ASTNode* makeAddrOf(ASTNode* expr);
 
 /* Debug / display */
 void printAST(ASTNode* node, int level);

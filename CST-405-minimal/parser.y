@@ -42,6 +42,7 @@ ASTNode* root = NULL;          /* Root of the Abstract Syntax Tree */
 %token INT FLOAT PRINT      /* Type keywords */
 %token FUNC PROGRAM_START   /* Function keywords */
 %token END NULLTOK          /* End-clause keywords */
+%token STRUCT DOT AMP
 
 /* NON-TERMINAL TYPES */
 %type <node> program
@@ -55,6 +56,7 @@ ASTNode* root = NULL;          /* Root of the Abstract Syntax Tree */
 %type <node> id_list
 %type <node> expr
 %type <node> func_call arg_list
+%type <node> struct_def field_list field_decl
 
 /* OPERATOR PRECEDENCE */
 %left '+' '-'
@@ -91,6 +93,9 @@ global_list:
     | global_list decl {
         $$ = createStmtList($1, $2);
     }
+    | global_list struct_def {        
+        $$ = createStmtList($1, $2);
+    }
     ;
 
 /* ================================================================
@@ -106,6 +111,34 @@ func_decl_list:
     | func_decl_list func_decl {
         /* Multiple functions: build a list */
         $$ = createStmtList($1, $2);
+    }
+    ;
+
+/* ================================================================
+ * STRUCT DEFINITION
+ * struct Point { int x; int y; };
+ * ================================================================ */
+
+struct_def:
+    STRUCT ID '{' field_list '}' ';' {
+        $$ = makeStructDef($2, $4);
+        free($2);
+    }
+    ;
+
+field_list:
+    field_decl {
+        $$ = $1;
+    }
+    | field_list field_decl {
+        $$ = appendField($1, $2);
+    }
+    ;
+
+field_decl:
+    INT ID ';' {
+        $$ = makeFieldDecl($2, "int");
+        free($2);
     }
     ;
 
@@ -497,6 +530,13 @@ expr:
     | ID '[' expr ']' {   
         $$ = createArrayIndex($1, $3);
         free($1); 
+    }
+     | expr DOT ID {                    /* ← ADD */
+        $$ = makeMemberAccess($1, $3);
+        free($3);
+    }
+    | AMP expr {                       /* ← ADD */
+        $$ = makeAddrOf($2);
     }
     ;
 
