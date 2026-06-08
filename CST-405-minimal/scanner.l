@@ -71,6 +71,16 @@ int yycolumn = 1;
     return END;
 }
 
+"while"         {
+    if (displayTokens) printf("  TOKEN: WHILE keyword\n");
+    return WHILE;
+}
+
+"continue"      {
+    if (displayTokens) printf("  TOKEN: CONTINUE keyword\n");
+    return CONTINUE;
+}
+
 "null"          {
     if (displayTokens) printf("  TOKEN: NULLTOK keyword\n");
     return NULLTOK;
@@ -98,8 +108,12 @@ int yycolumn = 1;
 "-"             { if (displayTokens) printf("  TOKEN: '-'\n");  return '-'; }
 "*"             { if (displayTokens) printf("  TOKEN: '*'\n");  return '*'; }
 "/"             { if (displayTokens) printf("  TOKEN: '/'\n");  return '/'; }
-"<"             { if (displayTokens) printf("  TOKEN: '<'\n");  return '<'; }
-">"             { if (displayTokens) printf("  TOKEN: '>'\n");  return '>'; }
+"<="            { if (displayTokens) printf("  TOKEN: RELOP '<='\n"); yylval.num = 'l'; return RELOP; }
+">="            { if (displayTokens) printf("  TOKEN: RELOP '>='\n"); yylval.num = 'g'; return RELOP; }
+"=="            { if (displayTokens) printf("  TOKEN: RELOP '=='\n"); yylval.num = 'e'; return RELOP; }
+"!="            { if (displayTokens) printf("  TOKEN: RELOP '!='\n"); yylval.num = 'n'; return RELOP; }
+"<"             { if (displayTokens) printf("  TOKEN: RELOP '<'\n");  yylval.num = '<'; return RELOP; }
+">"             { if (displayTokens) printf("  TOKEN: RELOP '>'\n");  yylval.num = '>'; return RELOP; }
 "="             { if (displayTokens) printf("  TOKEN: '='\n");  return '='; }
 ";"             { if (displayTokens) printf("  TOKEN: ';'\n");  return ';'; }
 "("             { if (displayTokens) printf("  TOKEN: '('\n");  return '('; }

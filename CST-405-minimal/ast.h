@@ -44,7 +44,8 @@ typedef enum {
 
     /* ── Control flow ── */
     NODE_IF,            /* if / if-else statement                        */
-    NODE_WHILE,         /* while loop                                    */
+    NODE_WHILE,         /* while (condition) ... continue;               */
+    NODE_FOR_WHILE,     /* while (init; condition; update) ... continue; */
     NODE_BLOCK,         /* Braced block { ... }                          */
 
     /* ── Arrays ── */
@@ -171,11 +172,22 @@ typedef struct ASTNode {
             struct ASTNode* else_stmt;  /* NULL if no else branch */
         } if_stmt;
 
-        /* NODE_WHILE ─ while loop */
+        /* NODE_WHILE ─ while loop
+         *   "while (condition) <body> continue;"            */
         struct {
             struct ASTNode* condition;
             struct ASTNode* body;
         } while_stmt;
+
+        /* NODE_FOR_WHILE ─ C-style while loop
+         *   "while (init; condition; update) <body> continue;"
+         *   init/update are NODE_ASSIGN nodes (from assign_init)   */
+        struct {
+            struct ASTNode* init;
+            struct ASTNode* condition;
+            struct ASTNode* update;
+            struct ASTNode* body;
+        } for_while;
 
         /* NODE_ARRAY_DECL ─ array declaration or array parameter
          *   isParam == 0 → declaration  e.g. int arr[10];
@@ -241,6 +253,8 @@ ASTNode* createProgram(ASTNode* globals, ASTNode* funcs, ASTNode* start);
 ASTNode* createIf(ASTNode* condition, ASTNode* then_stmt,
                    ASTNode* else_stmt);
 ASTNode* createWhile(ASTNode* condition, ASTNode* body);
+ASTNode* createForWhile(ASTNode* init, ASTNode* condition,
+                         ASTNode* update, ASTNode* body);
 ASTNode* createBlock(ASTNode* stmt_list);
 
 /* Arrays */

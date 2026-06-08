@@ -45,7 +45,20 @@ typedef enum {
     TAC_CALL,       /* call:               result = CALL arg1, arg2 (count) */
     TAC_RETURN,     /* return value:       RETURN     value    */
     TAC_ARRAY_LOAD, /* t0 = arr[i]                             */
-    TAC_ARRAY_STORE /* arr[i] = t0                             */
+    TAC_ARRAY_STORE,/* arr[i] = t0                             */
+
+    /* Relational opcodes — result = (arg1 <op> arg2), yields 0 or 1 */
+    TAC_LT,         /* result = arg1 <  arg2                   */
+    TAC_LE,         /* result = arg1 <= arg2                   */
+    TAC_GT,         /* result = arg1 >  arg2                   */
+    TAC_GE,         /* result = arg1 >= arg2                   */
+    TAC_EQ,         /* result = arg1 == arg2                   */
+    TAC_NE,         /* result = arg1 != arg2                   */
+
+    /* Control-flow opcodes (used for while loops / branching) */
+    TAC_LABEL,      /* label definition:   LABEL      name     */
+    TAC_GOTO,       /* unconditional jump: GOTO       label    */
+    TAC_IF_FALSE    /* conditional jump:   IF_FALSE arg1 GOTO result (label) */
 } TACOp;
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -83,6 +96,7 @@ typedef struct {
 /* Initialization */
 void      initTAC(void);
 char*     newTemp(void);
+char*     newLabel(void);
 
 /* Instruction creation and appending */
 TACInstr* createTAC(TACOp op, char* arg1, char* arg2, char* result);

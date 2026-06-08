@@ -3,56 +3,69 @@
 
 ---
 
-**[0:00 – 0:15] — HOOK**
+**[0:00 – 0:12] — INTRO**
 
-> "If you've ever written a function in any programming language, you've relied on your compiler to do a lot of invisible work. Let me show you exactly what that work is — and why it has to happen the way it does — inside this mini-compiler."
-
----
-
-**[0:15 – 0:45] — FUNCTIONS: WHY THEY'RE HARD**
-
-> "When the compiler sees a function declaration like this —"
-
-*(show on screen: `func add(int a, int b) ... end result;`)*
-
-> "— it can't just read it and move on. It has to do three things at once:
-> manage the function's own memory space, figure out how values get passed in, and figure out how to return a result back to whoever called it.
->
-> The reason this is hard is that MIPS — the assembly language this compiler targets — has only eight temporary registers. Once a function is running, it can call another function, which would overwrite those registers. So the compiler does something called a **stack frame**: it carves out 128 bytes on the stack, saves the return address in $ra, stores each parameter immediately — before anything else can clobber them — and only then runs the function body.
->
-> Without saving $ra, the program would lose track of where to go after the function finishes. That's the whole reason for the prologue and epilogue in the assembly output."
+> "I want to talk about two specific design choices I made in this compiler — how I ended functions, and how I handled operators — and why I made those choices."
 
 ---
 
-**[0:45 – 1:15] — OPERATIONS: HOW THE COMPILER BREAKS THEM DOWN**
+**[0:12 – 1:05] — DESIGN CHOICE 1: THE `end` KEYWORD**
 
-> "Now let's talk about operations. This compiler supports addition, subtraction, multiplication, division, and negation. The interesting one is division.
->
-> MIPS division works differently from the others — it produces two results at once: the quotient and the remainder. It stores them in special registers called HI and LO. The compiler always emits a `div` instruction immediately followed by `mflo` — 'move from LO' — to grab the quotient."
+> "Most languages end a function with a closing curly brace. I didn't do that. I designed a dedicated keyword — `end` — that every single function has to finish with."
 
-*(show on screen: `div $t0, $t1` → `mflo $t0`)*
+*(show on screen:)*
+```
+func add(int a, int b)
+    int result;
+    result = a + b;
+end result;
+```
 
-> "Why not just use a single instruction like addition does? Because the hardware was designed to capture both results in one shot, and the architecture requires you to retrieve them from HI/LO. The compiler has to know this — it's not a quirk, it's a fundamental property of the ISA."
+> "The reason I made this choice is about the lexer. When the lexer scans through the file, it needs to know when a function is over. A closing brace is ambiguous — it could close an if-block, a loop, or a function. The lexer can't tell the difference without a lot of extra context.
 
----
+> With `end`, there's no ambiguity. The lexer sees END and it knows: a function boundary is here. That's an identifiable token that belongs exclusively to function endings.
 
-**[1:15 – 1:45] — EXPRESSION TREES & PARENTHESES**
+> But I took it one step further. After `end`, you either write the name of the variable you're returning, or you write `null`. So the return value is part of the closing syntax itself — not a separate return statement somewhere inside the body.
 
-> "Here's where it comes together. Take this expression from the test file:"
+*(show: `end result;` vs `end null;`)*
 
-*(show: `result = (a + b) * (a - b) / 2;`)*
-
-> "Parentheses in the source code control which sub-expressions get built first in the Abstract Syntax Tree. The grammar rule is literally just `'(' expr ')'` — it returns the inner expression unchanged. No new node. No extra step. The parentheses disappear after parsing.
->
-> Then the compiler linearises that tree into Three-Address Code — one operation per line — by recursively processing each subtree. Left side first, right side second, then combine. The result is five simple instructions. That's why you always break complex expressions into temporaries: the optimizer can then inspect each step individually and fold constants at compile time."
-
-*(show TAC on screen: `t0 = a + b`, `t2 = a - b`, `t1 = t0 * t2`, `t3 = t1 / 2`, `result = t3`)*
+> "This matters because the lexer emits `END` as one token and then immediately either an ID token — the return variable — or the `NULLTOK` token for void. The parser can always see, right at the function boundary, exactly what's being returned. There's no searching backward through the body. The information is right there, attached to the closing token, every time."
 
 ---
 
-**[1:45 – 2:00] — CLOSER**
+**[1:05 – 1:50] — DESIGN CHOICE 2: HOW OPERATORS ARE IMPLEMENTED**
 
-> "So functions and operations aren't just language features — they each expose a specific constraint of the underlying hardware. The compiler's job is to know those constraints and translate around them correctly, every time. That's what this compiler does."
+> "For operators, I made a different kind of design choice. I didn't create separate named tokens for plus, minus, multiply, and divide. Instead, the lexer returns the character itself directly."
+
+*(show scanner.l rules:)*
+```
+"+"  { return '+'; }
+"-"  { return '-'; }
+"*"  { return '*'; }
+"/"  { return '/'; }
+```
+
+> "The reason is simplicity of the pipeline. Because the lexer passes the raw character through, the parser can match it directly in the grammar rule. And when the AST node is created, the operator gets stored as a single char — one field, no mapping, no enum conversion needed at that stage.
+
+*(show: `$$ = createBinOp('+', $1, $3);`)*
+
+> "Then later, when TAC is generated, that char is matched in a switch statement to produce the right TAC opcode — TAC_ADD, TAC_SUB, TAC_MUL, TAC_DIV. And when MIPS assembly is generated, the same char drives another switch that emits `add`, `sub`, `mul`, or the special-case `div` plus `mflo`.
+
+*(show the switch in tac.c:)*
+```
+case '+': tacOp = TAC_ADD; break;
+case '-': tacOp = TAC_SUB; break;
+case '*': tacOp = TAC_MUL; break;
+case '/': tacOp = TAC_DIV; break;
+```
+
+> "So the operator character flows cleanly through every phase — lexer, parser, AST, TAC, code gen — without ever needing to be re-encoded. That's why I kept it as a raw character rather than creating a separate token type."
+
+---
+
+**[1:50 – 2:00] — CLOSER**
+
+> "Both of these choices were about making each phase of the compiler's job as unambiguous as possible. `end` gives the lexer a guaranteed function boundary. Raw operator characters give the pipeline a single representation that carries through without translation."
 
 ---
 

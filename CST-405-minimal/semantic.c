@@ -399,6 +399,14 @@ static void checkStmt(ASTNode* node) {
             checkStmt(node->data.while_stmt.body);
             break;
 
+        case NODE_FOR_WHILE:
+            printf("  ✓ Checking C-style while loop  (line %d)\n", node->lineno);
+            checkStmt(node->data.for_while.init);
+            checkExpr(node->data.for_while.condition);
+            checkStmt(node->data.for_while.update);
+            checkStmt(node->data.for_while.body);
+            break;
+
         case NODE_BLOCK:
             enterScope();
             checkStmtList(node->data.block.stmt_list);

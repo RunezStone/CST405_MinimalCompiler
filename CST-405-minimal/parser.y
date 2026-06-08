@@ -42,6 +42,9 @@ ASTNode* root = NULL;          /* Root of the Abstract Syntax Tree */
 %token INT FLOAT PRINT      /* Type keywords */
 %token FUNC PROGRAM_START   /* Function keywords */
 %token END NULLTOK          /* End-clause keywords */
+%token WHILE CONTINUE       /* Loop keywords */
+%token <num> RELOP          /* Relational operator: carries op code
+                               '<' '>' 'l'(<=) 'g'(>=) 'e'(==) 'n'(!=) */
 
 /* NON-TERMINAL TYPES */
 %type <node> program
@@ -52,6 +55,7 @@ ASTNode* root = NULL;          /* Root of the Abstract Syntax Tree */
 %type <node> program_start
 %type <node> stmt_list stmt
 %type <node> decl assign print_stmt
+%type <node> while_stmt assign_init condition
 %type <node> id_list
 %type <node> expr
 %type <node> func_call arg_list
@@ -278,6 +282,7 @@ stmt:
     decl            /* Variable declaration:  int x;          */
     | assign        /* Assignment:            x = expr;        */
     | print_stmt    /* Print statement:       print(expr);     */
+    | while_stmt    /* While loop:            while (...) ... continue; */
     ;
 
 /* ================================================================
@@ -536,6 +541,45 @@ print_stmt:
         fprintf(stderr, "   💡 Suggestion: Use 'print(<expression>);'\n\n");
         $$ = NULL;
         yyerrok;
+    }
+    ;
+
+/* ================================================================
+ * WHILE LOOP
+ *   "while (condition) <stmts> continue;"                — simple form
+ *   "while (init; condition; update) <stmts> continue;" — C-style form
+ * ================================================================ */
+
+while_stmt:
+    WHILE '(' condition ')' stmt_list CONTINUE ';' {
+        $$ = createWhile($3, $5);
+    }
+    | WHILE '(' assign_init ';' condition ';' assign_init ')' stmt_list CONTINUE ';' {
+        $$ = createForWhile($3, $5, $7, $9);
+    }
+    | WHILE error {
+        fprintf(stderr, "\n❌ Syntax Error at line %d:\n", yylineno);
+        fprintf(stderr, "   Malformed while loop\n");
+        fprintf(stderr, "   💡 Suggestion: Use 'while (<condition>) ... continue;'\n");
+        fprintf(stderr, "                  or 'while (i = 0; i < 10; i = i + 1) ... continue;'\n\n");
+        $$ = NULL;
+        yyerrok;
+    }
+    ;
+
+/* ASSIGNMENT INITIALIZER — used in the C-style while header
+ * "x = expr"   (no trailing semicolon; that's part of the loop syntax) */
+assign_init:
+    ID '=' expr {
+        $$ = createAssign($1, $3);
+        free($1);
+    }
+    ;
+
+/* CONDITION — a relational comparison  "expr RELOP expr" */
+condition:
+    expr RELOP expr {
+        $$ = createBinOp((char)$2, $1, $3);
     }
     ;
 

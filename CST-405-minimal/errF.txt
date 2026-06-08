@@ -1,0 +1,34 @@
+
+❌ Syntax Error at line 25:
+   syntax error
+   💡 Common fixes:
+      • Check for missing semicolons
+      • Verify parentheses and brackets are balanced
+      • Ensure variables are declared before use
+      • Check for typos in keywords (int, print, func, end, null)
+      • Global declarations must come before func declarations
+      • Program_Start() must be last
+
+
+❌ Syntax Error at line 25:
+   Missing semicolon after print statement
+   💡 Suggestion: Add ';' after 'print(<expression>)'
+
+
+❌ Syntax Error at line 25:
+   syntax error
+   💡 Common fixes:
+      • Check for missing semicolons
+      • Verify parentheses and brackets are balanced
+      • Ensure variables are declared before use
+      • Check for typos in keywords (int, print, func, end, null)
+      • Global declarations must come before func declarations
+      • Program_Start() must be last
+
+
+❌ Syntax Error at line 25:
+   Malformed Program_Start block
+   💡 Suggestion: Use 'Program_Start() ... end null;'
+
+Error: Cannot open 'test_while.cm.tac' for writing
+Error: Cannot open 'test_while.cm.opt.tac' for writing

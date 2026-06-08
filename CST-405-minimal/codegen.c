@@ -10,6 +10,9 @@ static FILE* output;
 /* Simple temp-register counter — wraps $t0–$t7 */
 static int tempReg = 0;
 
+/* Counter for generating unique loop labels (Lstart0/Lend0, Lstart1/Lend1, ...) */
+static int loopLabelCount = 0;
+
 static int getNextTemp() {
     int reg = tempReg++;
     if (tempReg > 7) tempReg = 0;
@@ -77,6 +80,35 @@ static void genExpr(ASTNode* node) {
                             leftReg, rightReg);
                     fprintf(output, "    mflo $t%d\n", leftReg);
                     break;
+
+                /* ── Relational operators — yield 0/1 in $t<leftReg> ──
+                 * op codes set by the scanner: '<' '>' for < and >,
+                 * 'l' '=' (<=), 'g' (>=), 'e' (==), 'n' (!=)            */
+                case '<':
+                    fprintf(output, "    slt $t%d, $t%d, $t%d\n",
+                            leftReg, leftReg, rightReg);
+                    break;
+                case '>':
+                    fprintf(output, "    sgt $t%d, $t%d, $t%d\n",
+                            leftReg, leftReg, rightReg);
+                    break;
+                case 'l':   /* <= */
+                    fprintf(output, "    sle $t%d, $t%d, $t%d\n",
+                            leftReg, leftReg, rightReg);
+                    break;
+                case 'g':   /* >= */
+                    fprintf(output, "    sge $t%d, $t%d, $t%d\n",
+                            leftReg, leftReg, rightReg);
+                    break;
+                case 'e':   /* == */
+                    fprintf(output, "    seq $t%d, $t%d, $t%d\n",
+                            leftReg, leftReg, rightReg);
+                    break;
+                case 'n':   /* != */
+                    fprintf(output, "    sne $t%d, $t%d, $t%d\n",
+                            leftReg, leftReg, rightReg);
+                    break;
+
                 default:
                     break;
             }
@@ -283,6 +315,52 @@ void genStmt(ASTNode* node) {
         case NODE_FUNC_CALL:
             genFuncCall(node);
             break;
+
+        /* ── NEW: while loop ──
+         * Lstart:
+         *     <evaluate condition into $tN>
+         *     beqz $tN, Lend
+         *     <body>
+         *     j Lstart
+         * Lend:                                                        */
+        case NODE_WHILE: {
+            int id = loopLabelCount++;
+            fprintf(output, "Lstart%d:\n", id);
+            genExpr(node->data.while_stmt.condition);
+            fprintf(output, "    beqz $t%d, Lend%d\n", tempReg - 1, id);
+            tempReg = 0;
+            genStmt(node->data.while_stmt.body);
+            tempReg = 0;
+            fprintf(output, "    j Lstart%d\n", id);
+            fprintf(output, "Lend%d:\n", id);
+            break;
+        }
+
+        /* ── NEW: C-style while loop ──
+         *     <init>
+         * Lstart:
+         *     <evaluate condition into $tN>
+         *     beqz $tN, Lend
+         *     <body>
+         *     <update>
+         *     j Lstart
+         * Lend:                                                        */
+        case NODE_FOR_WHILE: {
+            genStmt(node->data.for_while.init);
+            tempReg = 0;
+            int id = loopLabelCount++;
+            fprintf(output, "Lstart%d:\n", id);
+            genExpr(node->data.for_while.condition);
+            fprintf(output, "    beqz $t%d, Lend%d\n", tempReg - 1, id);
+            tempReg = 0;
+            genStmt(node->data.for_while.body);
+            tempReg = 0;
+            genStmt(node->data.for_while.update);
+            tempReg = 0;
+            fprintf(output, "    j Lstart%d\n", id);
+            fprintf(output, "Lend%d:\n", id);
+            break;
+        }
 
         case NODE_STMT_LIST:
             genStmt(node->data.stmtlist.stmt);

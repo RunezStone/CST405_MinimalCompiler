@@ -1,0 +1,2 @@
+Error: Cannot open 'test_while.cm.tac' for writing
+Error: Cannot open 'test_while.cm.opt.tac' for writing

@@ -1,0 +1,572 @@
+
+╔════════════════════════════════════════════════════════════╗
+║          MINIMAL C COMPILER - EDUCATIONAL VERSION          ║
+╚════════════════════════════════════════════════════════════╝
+
+┌──────────────────────────────────────────────────────────┐
+│ PHASE 1: LEXICAL & SYNTAX ANALYSIS                       │
+├──────────────────────────────────────────────────────────┤
+│ • Reading source file: test_while.cm                      │
+│ • Tokenizing input (scanner.l)                           │
+│ • Parsing grammar rules (parser.y)                       │
+│ • Building Abstract Syntax Tree                          │
+└──────────────────────────────────────────────────────────┘
+
+Tokens recognized:
+  TOKEN: INT keyword
+  TOKEN: ID 'x'
+  TOKEN: ';'
+  TOKEN: INT keyword
+  TOKEN: ID 'y'
+  TOKEN: ';'
+  TOKEN: INT keyword
+  TOKEN: ID 'result'
+  TOKEN: ';'
+  TOKEN: FUNC keyword
+  TOKEN: ID 'add'
+  TOKEN: '('
+  TOKEN: INT keyword
+  TOKEN: ID 'a'
+  TOKEN: ','
+  TOKEN: INT keyword
+  TOKEN: ID 'b'
+  TOKEN: ')'
+  TOKEN: INT keyword
+  TOKEN: ID 'x'
+  TOKEN: ';'
+  TOKEN: INT keyword
+  TOKEN: ID 'result'
+  TOKEN: ';'
+  TOKEN: ID 'x'
+  TOKEN: '='
+  TOKEN: NUM 0
+  TOKEN: ';'
+  TOKEN: ID 'result'
+  TOKEN: '='
+  TOKEN: ID 'a'
+  TOKEN: '+'
+  TOKEN: ID 'b'
+  TOKEN: ';'
+  TOKEN: WHILE keyword
+  TOKEN: '('
+  TOKEN: ID 'x'
+  TOKEN: '='
+  TOKEN: NUM 0
+  TOKEN: ';'
+  TOKEN: ID 'x'
+  TOKEN: RELOP '>'
+  TOKEN: NUM 10
+  TOKEN: ';'
+  TOKEN: ID 'x'
+  TOKEN: '='
+  TOKEN: ID 'x'
+  TOKEN: '+'
+  TOKEN: NUM 1
+  TOKEN: ')'
+  TOKEN: PRINT keyword
+  TOKEN: '('
+  TOKEN: ID 'result'
+  TOKEN: ')'
+  TOKEN: ';'
+  TOKEN: ID 'result'
+  TOKEN: '='
+  TOKEN: ID 'result'
+  TOKEN: '+'
+  TOKEN: ID 'x'
+  TOKEN: ';'
+  TOKEN: CONTINUE keyword
+  TOKEN: ';'
+  TOKEN: END keyword
+  TOKEN: ID 'result'
+  TOKEN: ';'
+  TOKEN: PROGRAM_START keyword
+  TOKEN: '('
+  TOKEN: ')'
+  TOKEN: ID 'x'
+  TOKEN: '='
+  TOKEN: NUM 5
+  TOKEN: ';'
+  TOKEN: ID 'y'
+  TOKEN: '='
+  TOKEN: NUM 10
+  TOKEN: ';'
+  TOKEN: ID 'result'
+  TOKEN: '='
+  TOKEN: ID 'add'
+  TOKEN: '('
+  TOKEN: ID 'x'
+  TOKEN: ','
+  TOKEN: ID 'y'
+  TOKEN: ')'
+  TOKEN: ';'
+  TOKEN: ID 'result'
+  TOKEN: '='
+  TOKEN: NUM 0
+  TOKEN: ';'
+  TOKEN: PRINT keyword
+  TOKEN: '('
+  TOKEN: ID 'result'
+  TOKEN: ')'
+  TOKEN: ';'
+  TOKEN: END keyword
+  TOKEN: NULLTOK keyword
+  TOKEN: ';'
+
+✓ Parse successful - program is syntactically correct!
+
+┌──────────────────────────────────────────────────────────┐
+│ PHASE 2: ABSTRACT SYNTAX TREE (AST)                      │
+├──────────────────────────────────────────────────────────┤
+│ Tree structure representing the program hierarchy:        │
+└──────────────────────────────────────────────────────────┘
+PROGRAM
+    (unknown node type 7)
+    FUNC_DEF: add
+      PARAM: a
+      PARAM: b
+      (unknown node type 7)
+      END_CLAUSE: result
+    BLOCK
+        (unknown node type 7)
+
+┌──────────────────────────────────────────────────────────┐
+│ PHASE 3: SEMANTIC ANALYSIS                               │
+├──────────────────────────────────────────────────────────┤
+│ Checking semantic correctness:                           │
+│ • Variables declared before use                          │
+│ • No duplicate declarations                              │
+│ • Functions defined before Program_Start()               │
+│ • Argument counts match parameter counts                 │
+│ • Return variables declared inside their function        │
+└──────────────────────────────────────────────────────────┘
+SEMANTIC ANALYZER: Initialized
+
+Running semantic analysis...
+
+Entered global scope
+
+┌─────────────────────────────────────────────────────────────┐
+│ SEMANTIC SCOPE STACK (Depth: 1)
+├─────────────────────────────────────────────────────────────┤
+│ Scope[0] GLOBAL (0 variable(s))
+│   (empty)
+└─────────────────────────────────────────────────────────────┘
+
+Pass 1: Registering function signatures
+───────────────────────────────────────
+  ✓ Function 'add' registered  (2 param(s), returns: result)
+
+Pass 2: Checking declarations and function bodies
+──────────────────────────────────────────────────
+  ✓ Global variable 'x' declared
+  ✓ Global variable 'y' declared
+  ✓ Global variable 'result' declared
+─── Checking function: add ───
+  Entered scope for function 'add'
+
+┌─────────────────────────────────────────────────────────────┐
+│ SEMANTIC SCOPE STACK (Depth: 2)
+├─────────────────────────────────────────────────────────────┤
+│ Scope[0] GLOBAL (3 variable(s))
+│   Variables: x, y, result
+│ Scope[1] Function 'add' (0 variable(s))
+│   (empty)
+└─────────────────────────────────────────────────────────────┘
+
+  ✓ Parameter 'a' added to function scope
+  ✓ Parameter 'b' added to function scope
+
+┌─────────────────────────────────────────────────────────────┐
+│ SEMANTIC SCOPE STACK (Depth: 2)
+├─────────────────────────────────────────────────────────────┤
+│ Scope[0] GLOBAL (3 variable(s))
+│   Variables: x, y, result
+│ Scope[1] Function 'add' (2 variable(s))
+│   Variables: a, b
+└─────────────────────────────────────────────────────────────┘
+
+  ✓ Variable 'x' declared  (line 6)
+  ✓ Variable 'result' declared  (line 7)
+  ✓ Assignment to 'x'  (line 9)
+  ✓ Assignment to 'result'  (line 10)
+  ✓ Checking C-style while loop  (line 15)
+  ✓ Assignment to 'x'  (line 12)
+  ✓ Assignment to 'x'  (line 12)
+  ✓ Print statement  (line 13)
+  ✓ Assignment to 'result'  (line 14)
+  ✓ Return variable 'result' declared in 'add'
+  Exiting scope for function 'add'
+
+┌─────────────────────────────────────────────────────────────┐
+│ SEMANTIC SCOPE STACK (Depth: 1)
+├─────────────────────────────────────────────────────────────┤
+│ Scope[0] GLOBAL (3 variable(s))
+│   Variables: x, y, result
+└─────────────────────────────────────────────────────────────┘
+
+
+─── Checking Program_Start() ───
+
+┌─────────────────────────────────────────────────────────────┐
+│ SEMANTIC SCOPE STACK (Depth: 2)
+├─────────────────────────────────────────────────────────────┤
+│ Scope[0] GLOBAL (3 variable(s))
+│   Variables: x, y, result
+│ Scope[1] LOCAL (0 variable(s))
+│   (empty)
+└─────────────────────────────────────────────────────────────┘
+
+  ✓ Assignment to 'x'  (line 21)
+  ✓ Assignment to 'y'  (line 22)
+  ✓ Assignment to 'result'  (line 23)
+  ✓ Call to 'add()' — 2 argument(s) OK
+  ✓ Assignment to 'result'  (line 24)
+  ✓ Print statement  (line 25)
+
+┌─────────────────────────────────────────────────────────────┐
+│ SEMANTIC SCOPE STACK (Depth: 1)
+├─────────────────────────────────────────────────────────────┤
+│ Scope[0] GLOBAL (3 variable(s))
+│   Variables: x, y, result
+└─────────────────────────────────────────────────────────────┘
+
+
+═══════════════════════════════════════════════
+  SEMANTIC ANALYSIS SUMMARY
+═══════════════════════════════════════════════
+  Functions defined : 2
+  Errors found      : 0
+  Warnings found    : 0
+
+  ✓ Semantic analysis PASSED — program is valid!
+═══════════════════════════════════════════════
+
+
+┌──────────────────────────────────────────────────────────┐
+│ PHASE 4: INTERMEDIATE CODE GENERATION                    │
+├──────────────────────────────────────────────────────────┤
+│ Three-Address Code (TAC) - simplified instructions:       │
+│ • Each instruction has at most 3 operands                │
+│ • Temporary variables (t0, t1, ...) for expressions      │
+│ • FUNC_BEGIN/END, PARAM, ARG, CALL, RETURN for functions │
+└──────────────────────────────────────────────────────────┘
+Unoptimized TAC Instructions:
+─────────────────────────────
+ 1: DECL int x
+ 2: DECL int y
+ 3: DECL int result
+ 4: FUNC_BEGIN add
+ 5: PARAM a
+ 6: PARAM b
+ 7: DECL int x
+ 8: DECL int result
+ 9: x = 0
+10: t0 = a + b
+11: result = t0
+12: x = 0
+13: LABEL L0:
+14: t1 = x > 10
+15: IF_FALSE t1 GOTO L1
+16: PRINT result
+17: t2 = result + x
+18: result = t2
+19: t3 = x + 1
+20: x = t3
+21: GOTO L0
+22: LABEL L1:
+23: RETURN result
+24: FUNC_END add
+25: FUNC_BEGIN Program_Start
+26: x = 5
+27: y = 10
+28: ARG x
+29: ARG y
+30: t4 = CALL add, 2
+31: result = t4
+32: result = 0
+33: PRINT result
+34: FUNC_END Program_Start
+✓ TAC saved to: test_while.cm.tac
+
+┌──────────────────────────────────────────────────────────┐
+│ PHASE 5: CODE OPTIMIZATION                               │
+├──────────────────────────────────────────────────────────┤
+│ Applying optimizations:                                  │
+│ • Constant folding (evaluate compile-time expressions)   │
+│ • Copy propagation (replace variables with values)       │
+│ • Dead code elimination                                  │
+└──────────────────────────────────────────────────────────┘
+
+── Multi-pass optimization ──
+  Pass 1...
+  Pass 2...
+  Converged after 2 pass(es).
+Optimized TAC Instructions:
+─────────────────────────────
+ 1: DECL int x
+ 2: DECL int y
+ 3: DECL int result
+ 4: FUNC_BEGIN add
+ 5: PARAM a
+ 6: PARAM b
+ 7: DECL int x
+ 8: DECL int result
+ 9: x = 0
+10: t0 = a + b
+11: result = t0
+12: x = 0
+13: LABEL L0:
+14: t1 = x > 10
+15: IF_FALSE t1 GOTO L1
+16: PRINT result
+17: t2 = result + x
+18: result = t2
+19: t3 = x + 1
+20: x = t3
+21: GOTO L0
+22: LABEL L1:
+23: RETURN result
+24: FUNC_END add
+25: FUNC_BEGIN Program_Start
+26: x = 5
+27: y = 10
+28: ARG x
+29: ARG y
+30: t4 = CALL add, 2
+31: result = t4
+32: result = 0
+33: PRINT 0
+34: FUNC_END Program_Start
+
+┌──────────────────────────────────────────────────────────┐
+│ PHASE: REGISTER ALLOCATION                               │
+│  Mapping temporaries to $t0–$t7 with LRU spill policy   │
+└──────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────┐
+│ REGISTER ALLOCATOR: Initialized ($t0–$t7, LRU spilling) │
+└──────────────────────────────────────────────────────────┘
+
+  [Line 1] DECL x  →  allocate storage
+  + ALLOC:  'x' → $t0  (free register)
+
+  [Line 2] DECL y  →  allocate storage
+  + ALLOC:  'y' → $t1  (free register)
+
+  [Line 3] DECL result  →  allocate storage
+  + ALLOC:  'result' → $t2  (free register)
+
+  [Line 4] FUNC_BEGIN add  →  reset frame
+
+┌──────────────────────────────────────────────────────────┐
+│ REGISTER ALLOCATOR: Initialized ($t0–$t7, LRU spilling) │
+└──────────────────────────────────────────────────────────┘
+
+  [Line 5] PARAM a  →  allocate for parameter
+  + ALLOC:  'a' → $t0  (free register)
+
+  [Line 6] PARAM b  →  allocate for parameter
+  + ALLOC:  'b' → $t1  (free register)
+
+  [Line 7] DECL x  →  allocate storage
+  + ALLOC:  'x' → $t2  (free register)
+
+  [Line 8] DECL result  →  allocate storage
+  + ALLOC:  'result' → $t3  (free register)
+
+  [Line 9] x = 0
+  ✓ HIT:    'x' already in $t2
+
+  [Line 10] t0 = a + b
+  ✓ HIT:    'a' already in $t0
+  ✓ HIT:    'b' already in $t1
+  + ALLOC:  't0' → $t4  (free register)
+
+  [Line 11] result = t0
+  ✓ HIT:    't0' already in $t4
+  ✓ HIT:    'result' already in $t3
+  - FREE:   $t4 (t0) released
+
+  [Line 12] x = 0
+  ✓ HIT:    'x' already in $t2
+
+  [Line 13] 
+  [Line 14] 
+  [Line 15] 
+  [Line 16] PRINT result
+  ✓ HIT:    'result' already in $t3
+
+  [Line 17] t2 = result + x
+  ✓ HIT:    'result' already in $t3
+  ✓ HIT:    'x' already in $t2
+  + ALLOC:  't2' → $t4  (free register)
+
+  [Line 18] result = t2
+  ✓ HIT:    't2' already in $t4
+  ✓ HIT:    'result' already in $t3
+  - FREE:   $t4 (t2) released
+
+  [Line 19] t3 = x + 1
+  ✓ HIT:    'x' already in $t2
+  + ALLOC:  't3' → $t4  (free register)
+
+  [Line 20] x = t3
+  ✓ HIT:    't3' already in $t4
+  ✓ HIT:    'x' already in $t2
+  - FREE:   $t4 (t3) released
+
+  [Line 21] 
+  [Line 22] 
+  [Line 23] RETURN result
+  ✓ HIT:    'result' already in $t3
+
+  [Line 24] FUNC_END add
+
+  [Line 25] FUNC_BEGIN Program_Start  →  reset frame
+
+┌──────────────────────────────────────────────────────────┐
+│ REGISTER ALLOCATOR: Initialized ($t0–$t7, LRU spilling) │
+└──────────────────────────────────────────────────────────┘
+
+  [Line 26] x = 5
+  + ALLOC:  'x' → $t0  (free register)
+
+  [Line 27] y = 10
+  + ALLOC:  'y' → $t1  (free register)
+
+  [Line 28] ARG x  →  load argument
+  ✓ HIT:    'x' already in $t0
+
+  [Line 29] ARG y  →  load argument
+  ✓ HIT:    'y' already in $t1
+
+  [Line 30] t4 = CALL add, 2
+  + ALLOC:  't4' → $t2  (free register)
+
+  [Line 31] result = t4
+  ✓ HIT:    't4' already in $t2
+  + ALLOC:  'result' → $t3  (free register)
+  - FREE:   $t2 (t4) released
+
+  [Line 32] result = 0
+  ✓ HIT:    'result' already in $t3
+
+  [Line 33] PRINT 0
+
+  [Line 34] FUNC_END Program_Start
+
+  ── Final register state after allocation ──
+  Register file state:
+  ┌──────┬──────────────┬──────────┐
+  │ Reg  │ Holds        │ Spilled? │
+  ├──────┼──────────────┼──────────┤
+  │ $t0  │ x            │ no       │
+  │ $t1  │ y            │ no       │
+  │ $t2  │ (free)       │ no       │
+  │ $t3  │ result       │ no       │
+  │ $t4  │ (free)       │ no       │
+  │ $t5  │ (free)       │ no       │
+  │ $t6  │ (free)       │ no       │
+  │ $t7  │ (free)       │ no       │
+  └──────┴──────────────┴──────────┘
+
+  ✓ No spills needed – all temporaries fit in registers
+✓ Optimized TAC saved to: test_while.cm.opt.tac
+
+┌──────────────────────────────────────────────────────────┐
+│ PHASE 6: MIPS CODE GENERATION                            │
+├──────────────────────────────────────────────────────────┤
+│ Translating to MIPS assembly:                            │
+│ • Variables stored on stack per function frame           │
+│ • Using $t0-$t7 for temporary values                     │
+│ • $a0-$a3 for function arguments, $v0 for return value   │
+│ • System calls for print operations                      │
+└──────────────────────────────────────────────────────────┘
+SYMBOL TABLE: Initialized
+
+=== SYMBOL TABLE STATE ===
+Count: 0, Next Offset: 0
+(empty)
+
+SYMBOL TABLE: Added 'a' (type: int) at offset 0
+
+=== SYMBOL TABLE STATE ===
+Count: 1, Next Offset: 4
+  Idx  Name             Type     Offset   Array?
+  ────────────────────────────────────────
+
+SYMBOL TABLE: Added 'b' (type: int) at offset 4
+
+=== SYMBOL TABLE STATE ===
+Count: 2, Next Offset: 8
+  Idx  Name             Type     Offset   Array?
+  ────────────────────────────────────────
+
+SYMBOL TABLE: Added 'x' (type: int) at offset 8
+
+=== SYMBOL TABLE STATE ===
+Count: 3, Next Offset: 12
+  Idx  Name             Type     Offset   Array?
+  ────────────────────────────────────────
+
+SYMBOL TABLE: Added 'result' (type: int) at offset 12
+
+=== SYMBOL TABLE STATE ===
+Count: 4, Next Offset: 16
+  Idx  Name             Type     Offset   Array?
+  ────────────────────────────────────────
+
+SYMBOL TABLE: Found 'x' at offset 8
+SYMBOL TABLE: Found 'result' at offset 12
+SYMBOL TABLE: Found 'a' at offset 0
+SYMBOL TABLE: Found 'b' at offset 4
+SYMBOL TABLE: Found 'x' at offset 8
+SYMBOL TABLE: Found 'x' at offset 8
+SYMBOL TABLE: Found 'result' at offset 12
+SYMBOL TABLE: Found 'result' at offset 12
+SYMBOL TABLE: Found 'result' at offset 12
+SYMBOL TABLE: Found 'x' at offset 8
+SYMBOL TABLE: Found 'x' at offset 8
+SYMBOL TABLE: Found 'x' at offset 8
+SYMBOL TABLE: Found 'result' at offset 12
+SYMBOL TABLE: Initialized
+
+=== SYMBOL TABLE STATE ===
+Count: 0, Next Offset: 0
+(empty)
+
+SYMBOL TABLE: Added 'x' (type: int) at offset 0
+
+=== SYMBOL TABLE STATE ===
+Count: 1, Next Offset: 4
+  Idx  Name             Type     Offset   Array?
+  ────────────────────────────────────────
+
+SYMBOL TABLE: Added 'y' (type: int) at offset 4
+
+=== SYMBOL TABLE STATE ===
+Count: 2, Next Offset: 8
+  Idx  Name             Type     Offset   Array?
+  ────────────────────────────────────────
+
+SYMBOL TABLE: Added 'result' (type: int) at offset 8
+
+=== SYMBOL TABLE STATE ===
+Count: 3, Next Offset: 12
+  Idx  Name             Type     Offset   Array?
+  ────────────────────────────────────────
+
+SYMBOL TABLE: Found 'x' at offset 0
+SYMBOL TABLE: Found 'y' at offset 4
+SYMBOL TABLE: Found 'x' at offset 0
+SYMBOL TABLE: Found 'y' at offset 4
+SYMBOL TABLE: Found 'result' at offset 8
+SYMBOL TABLE: Found 'result' at offset 8
+SYMBOL TABLE: Found 'result' at offset 8
+  ✓ MIPS code written to 'test_while_final.s'
+✓ MIPS assembly generated: test_while_final.s
+
+╔════════════════════════════════════════════════════════════╗
+║                  COMPILATION SUCCESSFUL!                   ║
+║         Run the output file in a MIPS simulator           ║
+╚════════════════════════════════════════════════════════════╝

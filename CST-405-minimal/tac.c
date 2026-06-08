@@ -282,18 +282,29 @@ void allocateRegistersForTAC() {
  * CORE TAC INFRASTRUCTURE
  * ───────────────────────────────────────────────────────────────────────── */
 
+/* Counter for generated labels (L0, L1, ...) — used by while-loop TAC */
+static int labelCount = 0;
+
 void initTAC() {
     tacList.head      = NULL;
     tacList.tail      = NULL;
     tacList.tempCount = 0;
     optimizedList.head = NULL;
     optimizedList.tail = NULL;
+    labelCount         = 0;
 }
 
 char* newTemp() {
     char* temp = malloc(10);
     sprintf(temp, "t%d", tacList.tempCount++);
     return temp;
+}
+
+/* Generate a fresh, unique label name (L0, L1, ...) for control flow */
+char* newLabel() {
+    char* label = malloc(12);
+    sprintf(label, "L%d", labelCount++);
+    return label;
 }
 
 TACInstr* createTAC(TACOp op, char* arg1, char* arg2, char* result) {
@@ -366,7 +377,15 @@ char* generateTACExpr(ASTNode* node) {
                     case '-': tacOp = TAC_SUB; break;
                     case '*': tacOp = TAC_MUL; break;
                     case '/': tacOp = TAC_DIV; break;
-                    default:  tacOp = TAC_ADD; break; /* comparisons emit as-is */
+                    /* Relational operators (used in while/if conditions):
+                     * '<' '>' '<' literal, plus 'l'(<=) 'g'(>=) 'e'(==) 'n'(!=) */
+                    case '<': tacOp = TAC_LT; break;
+                    case '>': tacOp = TAC_GT; break;
+                    case 'l': tacOp = TAC_LE; break;
+                    case 'g': tacOp = TAC_GE; break;
+                    case 'e': tacOp = TAC_EQ; break;
+                    case 'n': tacOp = TAC_NE; break;
+                    default:  tacOp = TAC_ADD; break;
                 }
                 appendTAC(createTAC(tacOp, left, right, temp));
             }
@@ -561,6 +580,59 @@ case NODE_ASSIGN: {
             generateTACFuncCall(node);   /* result temp is discarded */
             break;
 
+        /* ── NEW: while loop ──
+         * LABEL Lstart
+         *   t = <condition>
+         *   IF_FALSE t GOTO Lend
+         *   <body>
+         *   GOTO Lstart
+         * LABEL Lend                                                  */
+        case NODE_WHILE: {
+            char* startLabel = newLabel();
+            char* endLabel   = newLabel();
+
+            appendTAC(createTAC(TAC_LABEL, NULL, NULL, startLabel));
+            char* condTemp = generateTACExpr(node->data.while_stmt.condition);
+            appendTAC(createTAC(TAC_IF_FALSE, condTemp, NULL, endLabel));
+            generateTAC(node->data.while_stmt.body);
+            appendTAC(createTAC(TAC_GOTO, NULL, NULL, startLabel));
+            appendTAC(createTAC(TAC_LABEL, NULL, NULL, endLabel));
+
+            free(startLabel);
+            free(endLabel);
+            free(condTemp);
+            break;
+        }
+
+        /* ── NEW: C-style while loop ──
+         * <init>
+         * LABEL Lstart
+         *   t = <condition>
+         *   IF_FALSE t GOTO Lend
+         *   <body>
+         *   <update>
+         *   GOTO Lstart
+         * LABEL Lend                                                  */
+        case NODE_FOR_WHILE: {
+            generateTAC(node->data.for_while.init);
+
+            char* startLabel = newLabel();
+            char* endLabel   = newLabel();
+
+            appendTAC(createTAC(TAC_LABEL, NULL, NULL, startLabel));
+            char* condTemp = generateTACExpr(node->data.for_while.condition);
+            appendTAC(createTAC(TAC_IF_FALSE, condTemp, NULL, endLabel));
+            generateTAC(node->data.for_while.body);
+            generateTAC(node->data.for_while.update);
+            appendTAC(createTAC(TAC_GOTO, NULL, NULL, startLabel));
+            appendTAC(createTAC(TAC_LABEL, NULL, NULL, endLabel));
+
+            free(startLabel);
+            free(endLabel);
+            free(condTemp);
+            break;
+        }
+
         case NODE_STMT_LIST:
             generateTAC(node->data.stmtlist.stmt);
             generateTAC(node->data.stmtlist.next);
@@ -630,10 +702,39 @@ static void printOneInstr(FILE* out, TACInstr* curr, int lineNum) {
             fprintf(out, "%s = %s[%s]\n",
             curr->result, curr->arg1, curr->arg2);
         break;
-        case TAC_ARRAY_STORE:                             
+        case TAC_ARRAY_STORE:
             fprintf(out, "%s[%s] = %s\n",
             curr->arg1, curr->arg2, curr->result);
         break;
+        /* ── relational opcodes ── */
+        case TAC_LT:
+            fprintf(out, "%s = %s < %s\n", curr->result, curr->arg1, curr->arg2);
+            break;
+        case TAC_LE:
+            fprintf(out, "%s = %s <= %s\n", curr->result, curr->arg1, curr->arg2);
+            break;
+        case TAC_GT:
+            fprintf(out, "%s = %s > %s\n", curr->result, curr->arg1, curr->arg2);
+            break;
+        case TAC_GE:
+            fprintf(out, "%s = %s >= %s\n", curr->result, curr->arg1, curr->arg2);
+            break;
+        case TAC_EQ:
+            fprintf(out, "%s = %s == %s\n", curr->result, curr->arg1, curr->arg2);
+            break;
+        case TAC_NE:
+            fprintf(out, "%s = %s != %s\n", curr->result, curr->arg1, curr->arg2);
+            break;
+        /* ── control-flow opcodes ── */
+        case TAC_LABEL:
+            fprintf(out, "LABEL %s:\n", curr->result);
+            break;
+        case TAC_GOTO:
+            fprintf(out, "GOTO %s\n", curr->result);
+            break;
+        case TAC_IF_FALSE:
+            fprintf(out, "IF_FALSE %s GOTO %s\n", curr->arg1, curr->result);
+            break;
         default:
             break;
     }
@@ -704,7 +805,13 @@ int optimizeTACPass(VarValue* values, int* valueCount) {
             case TAC_ADD:
             case TAC_SUB:
             case TAC_MUL:
-            case TAC_DIV: {
+            case TAC_DIV:
+            case TAC_LT:
+            case TAC_LE:
+            case TAC_GT:
+            case TAC_GE:
+            case TAC_EQ:
+            case TAC_NE: {
                 char* left  = curr->arg1;
                 char* right = curr->arg2;
 
@@ -722,7 +829,13 @@ int optimizeTACPass(VarValue* values, int* valueCount) {
                     if      (curr->op == TAC_ADD) res = lv + rv;
                     else if (curr->op == TAC_SUB) res = lv - rv;
                     else if (curr->op == TAC_MUL) res = lv * rv;
-                    else                          res = lv / rv;
+                    else if (curr->op == TAC_DIV) res = lv / rv;
+                    else if (curr->op == TAC_LT)  res = (lv <  rv);
+                    else if (curr->op == TAC_LE)  res = (lv <= rv);
+                    else if (curr->op == TAC_GT)  res = (lv >  rv);
+                    else if (curr->op == TAC_GE)  res = (lv >= rv);
+                    else if (curr->op == TAC_EQ)  res = (lv == rv);
+                    else                          res = (lv != rv);
                     char* resultStr = malloc(24);
                     sprintf(resultStr, "%d", res);
                     values[*valueCount].var   = strdup(curr->result);
@@ -811,6 +924,26 @@ int optimizeTACPass(VarValue* values, int* valueCount) {
                          curr->arg1, curr->arg2, curr->result);
                 break;
 
+            /* ── NEW: control-flow opcodes ──
+             * LABEL marks a merge point reachable from multiple paths
+             * (e.g. loop back-edges), so any propagated constant values
+             * may no longer be valid there — flush the table.          */
+            case TAC_LABEL:
+                *valueCount = 0;
+                newInstr = createTAC(TAC_LABEL, NULL, NULL, curr->result);
+                break;
+            case TAC_GOTO:
+                newInstr = createTAC(TAC_GOTO, NULL, NULL, curr->result);
+                break;
+            case TAC_IF_FALSE: {
+                char* cond = curr->arg1;
+                for (int i = *valueCount - 1; i >= 0; i--)
+                    if (strcmp(values[i].var, cond) == 0) { cond = values[i].value; break; }
+                if (strcmp(cond, curr->arg1) != 0) changed = 1;
+                newInstr = createTAC(TAC_IF_FALSE, cond, NULL, curr->result);
+                break;
+            }
+
             default:
                 break;
         }
@@ -857,7 +990,10 @@ void eliminateDeadCode() {
             curr->op == TAC_ARG        ||
             curr->op == TAC_CALL       ||
             curr->op == TAC_RETURN     ||
-            curr->op == TAC_ARRAY_STORE) {   /* ← ADD THIS */
+            curr->op == TAC_ARRAY_STORE||
+            curr->op == TAC_LABEL      ||
+            curr->op == TAC_GOTO       ||
+            curr->op == TAC_IF_FALSE) {      /* control-flow is structural */
             isUsed = 1;
         } else if (curr->result) {
             for (int i = 0; i < usedCount; i++) {
@@ -934,6 +1070,15 @@ void saveOptimizedTACToFile(const char* filename) {
             case TAC_RETURN: fprintf(file, "%d: RETURN %s\n", lineNum, curr->arg1); break;
             case TAC_ARRAY_LOAD:  fprintf(file, "%d: %s = %s[%s]\n", lineNum, curr->result, curr->arg1, curr->arg2); break;
             case TAC_ARRAY_STORE: fprintf(file, "%d: %s[%s] = %s\n", lineNum, curr->arg1, curr->arg2, curr->result); break;
+            case TAC_LT: fprintf(file, "%d: %s = %s < %s\n",  lineNum, curr->result, curr->arg1, curr->arg2); break;
+            case TAC_LE: fprintf(file, "%d: %s = %s <= %s\n", lineNum, curr->result, curr->arg1, curr->arg2); break;
+            case TAC_GT: fprintf(file, "%d: %s = %s > %s\n",  lineNum, curr->result, curr->arg1, curr->arg2); break;
+            case TAC_GE: fprintf(file, "%d: %s = %s >= %s\n", lineNum, curr->result, curr->arg1, curr->arg2); break;
+            case TAC_EQ: fprintf(file, "%d: %s = %s == %s\n", lineNum, curr->result, curr->arg1, curr->arg2); break;
+            case TAC_NE: fprintf(file, "%d: %s = %s != %s\n", lineNum, curr->result, curr->arg1, curr->arg2); break;
+            case TAC_LABEL:    fprintf(file, "%d: LABEL %s:\n",            lineNum, curr->result); break;
+            case TAC_GOTO:     fprintf(file, "%d: GOTO %s\n",              lineNum, curr->result); break;
+            case TAC_IF_FALSE: fprintf(file, "%d: IF_FALSE %s GOTO %s\n",  lineNum, curr->arg1, curr->result); break;
             default: break;
         }
         curr = curr->next;

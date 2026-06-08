@@ -306,6 +306,21 @@ ASTNode* createWhile(ASTNode* condition, ASTNode* body) {
     return node;
 }
 
+/* Create a C-style while loop node
+ *   "while (init; condition; update) <body> continue;"
+ * init/update are NODE_ASSIGN nodes built from assign_init.            */
+ASTNode* createForWhile(ASTNode* init, ASTNode* condition,
+                         ASTNode* update, ASTNode* body) {
+    ASTNode* node = malloc(sizeof(ASTNode));
+    node->type                       = NODE_FOR_WHILE;
+    node->lineno                     = yylineno;
+    node->data.for_while.init        = init;
+    node->data.for_while.condition   = condition;
+    node->data.for_while.update      = update;
+    node->data.for_while.body        = body;
+    return node;
+}
+
 /* Create a braced block node { stmt_list } */
 ASTNode* createBlock(ASTNode* stmt_list) {
     ASTNode* node = malloc(sizeof(ASTNode));
@@ -404,13 +419,21 @@ void printAST(ASTNode* node, int level) {
             }
             indent(level);
             printf("BINOP: %s\n", opStr);
-            printAST(node->data.func_def.body, level + 2);
-            if (node->data.func_def.end_clause) {
-                indent(level + 1);
-                printf("END: %s\n",
-                    node->data.func_def.end_clause->data.name
-                    ? node->data.func_def.end_clause->data.name : "null");
-            }
+            printAST(node->data.binop.left, level + 1);
+            if (node->data.binop.right)
+                printAST(node->data.binop.right, level + 1);
+            break;
+        }
+
+        case NODE_FUNC_DEF:
+            indent(level);
+            printf("FUNC_DEF: %s\n", node->data.func_def.name);
+            if (node->data.func_def.params)
+                printAST(node->data.func_def.params, level + 1);
+            if (node->data.func_def.body)
+                printAST(node->data.func_def.body, level + 1);
+            if (node->data.func_def.end_clause)
+                printAST(node->data.func_def.end_clause, level + 1);
             break;
 
         case NODE_FUNC_CALL:
@@ -469,6 +492,23 @@ void printAST(ASTNode* node, int level) {
             printAST(node->data.while_stmt.body, level + 2);
             break;
 
+        case NODE_FOR_WHILE:
+            indent(level);
+            printf("FOR_WHILE\n");
+            indent(level + 1);
+            printf("INIT:\n");
+            printAST(node->data.for_while.init, level + 2);
+            indent(level + 1);
+            printf("CONDITION:\n");
+            printAST(node->data.for_while.condition, level + 2);
+            indent(level + 1);
+            printf("UPDATE:\n");
+            printAST(node->data.for_while.update, level + 2);
+            indent(level + 1);
+            printf("BODY:\n");
+            printAST(node->data.for_while.body, level + 2);
+            break;
+
         case NODE_ARRAY_DECL:
             indent(level);
             printf("ARRAY_DECL: %s[%d]\n",
@@ -492,5 +532,4 @@ void printAST(ASTNode* node, int level) {
             printf("(unknown node type %d)\n", node->type);
             break;
     }
-}
 }
