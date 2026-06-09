@@ -56,6 +56,41 @@ static void genExpr(ASTNode* node) {
             break;
         }
 
+        /* ── Struct field access (rvalue):  base is field  ──
+         * Address = base's stack offset + field's byte offset within
+         * the struct (both positive, relative to $sp).               */
+        case NODE_STRUCT_ACCESS: {
+            ASTNode* base    = node->data.struct_access.base;
+            char*    field   = node->data.struct_access.field;
+            char*    baseName = (base && base->type == NODE_VAR)
+                                    ? base->data.name : NULL;
+            if (!baseName) {
+                fprintf(stderr,
+                    "CODEGEN ERROR: Struct access base must be a simple variable\n");
+                exit(1);
+            }
+            int baseOffset = getVarOffset(baseName);
+            char* structTypeName = getVarStructType(baseName);
+            if (baseOffset == -1 || structTypeName == NULL) {
+                fprintf(stderr,
+                    "CODEGEN ERROR: '%s' is not a declared struct variable\n", baseName);
+                exit(1);
+            }
+            StructTypeInfo* st = findStructType(structTypeName);
+            StructField*    f  = st ? findStructField(st, field) : NULL;
+            if (!f) {
+                fprintf(stderr,
+                    "CODEGEN ERROR: Struct '%s' has no field '%s'\n",
+                    structTypeName, field);
+                exit(1);
+            }
+            int totalOffset = baseOffset + f->offset;
+            int reg = getNextTemp();
+            fprintf(output, "    lw $t%d, %d($sp)   # %s is %s\n",
+                    reg, totalOffset, baseName, field);
+            break;
+        }
+
         case NODE_BINOP: {
             genExpr(node->data.binop.left);
             int leftReg = tempReg - 1;
@@ -253,7 +288,16 @@ void genStmt(ASTNode* node) {
     switch (node->type) {
 
         case NODE_DECL: {
-            int offset = addVar(node->data.decl.name, node->data.decl.varType);
+            char* declType   = node->data.decl.varType;
+            int   isStructTy = (declType && findStructType(declType) != NULL);
+            int   offset;
+
+            if (isStructTy) {
+                offset = addStructVar(node->data.decl.name, declType);
+            } else {
+                offset = addVar(node->data.decl.name, declType);
+            }
+
             if (offset == -1) {
                 fprintf(stderr,
                     "CODEGEN ERROR: Variable '%s' already declared\n",
@@ -261,12 +305,75 @@ void genStmt(ASTNode* node) {
                 exit(1);
             }
             fprintf(output, "    # Declare %s %s at offset %d\n",
-                    node->data.decl.varType,
-                    node->data.decl.name, offset);
+                    declType, node->data.decl.name, offset);
+
+            /* ── Initialize fields that carry a default value, e.g.
+             *    struct stats { int health; health = 10; ... }
+             * emits   playerStats.health = 10   right after the DECL ── */
+            if (isStructTy) {
+                StructTypeInfo* st = findStructType(declType);
+                if (st) {
+                    for (int fi = 0; fi < st->fieldCount; fi++) {
+                        StructField* f = &st->fields[fi];
+                        if (!f->hasDefault) continue;
+
+                        int totalOffset = offset + f->offset;
+                        if (f->defaultIsFloat) {
+                            fprintf(output,
+                                "    # NOTE: float default for %s.%s = %g "
+                                "skipped (float codegen unsupported)\n",
+                                node->data.decl.name, f->name, f->defaultFloatVal);
+                        } else {
+                            int reg = getNextTemp();
+                            fprintf(output, "    li $t%d, %d\n", reg, f->defaultIntVal);
+                            fprintf(output,
+                                "    sw $t%d, %d($sp)   # %s.%s = %d (default)\n",
+                                reg, totalOffset, node->data.decl.name,
+                                f->name, f->defaultIntVal);
+                            tempReg = 0;
+                        }
+                    }
+                }
+            }
             break;
         }
 
         case NODE_ASSIGN: {
+            /* ── Struct field assignment:  base is field = expr;  ── */
+            if (node->data.assign.structLHS) {
+                ASTNode* access  = node->data.assign.structLHS;
+                ASTNode* base    = access->data.struct_access.base;
+                char*    field   = access->data.struct_access.field;
+                char*    baseName = (base && base->type == NODE_VAR)
+                                        ? base->data.name : NULL;
+                if (!baseName) {
+                    fprintf(stderr,
+                        "CODEGEN ERROR: Struct assignment base must be a simple variable\n");
+                    exit(1);
+                }
+                int baseOffset = getVarOffset(baseName);
+                char* structTypeName = getVarStructType(baseName);
+                if (baseOffset == -1 || structTypeName == NULL) {
+                    fprintf(stderr,
+                        "CODEGEN ERROR: '%s' is not a declared struct variable\n", baseName);
+                    exit(1);
+                }
+                StructTypeInfo* st = findStructType(structTypeName);
+                StructField*    f  = st ? findStructField(st, field) : NULL;
+                if (!f) {
+                    fprintf(stderr,
+                        "CODEGEN ERROR: Struct '%s' has no field '%s'\n",
+                        structTypeName, field);
+                    exit(1);
+                }
+                int totalOffset = baseOffset + f->offset;
+                genExpr(node->data.assign.value);
+                fprintf(output, "    sw   $t%d, %d($sp)   # %s is %s = ...\n",
+                        tempReg - 1, totalOffset, baseName, field);
+                tempReg = 0;
+                break;
+            }
+
             /* ── NEW: handle func call on RHS ── */
             if (node->data.assign.value &&
                 node->data.assign.value->type == NODE_FUNC_CALL) {

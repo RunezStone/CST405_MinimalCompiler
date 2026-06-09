@@ -6,6 +6,16 @@ int result;
 func add(num1, num2)
     int result;
     result = num1 + num2;
+    while (int x = 0; x > 10; x = x + 1)
+    
+
+        continue;
+
+    while (result > 10)
+    
+        result = result + 1;
+        continue;
+    
     end result;
 
 

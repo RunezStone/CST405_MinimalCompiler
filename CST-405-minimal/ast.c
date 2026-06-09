@@ -89,6 +89,7 @@ ASTNode* createAssign(char* var, ASTNode* value) {
     node->data.assign.var       = var ? strdup(var) : NULL;
     node->data.assign.value     = value;
     node->data.assign.arrayLHS  = NULL;   /* set by parser for arr[i] = ... */
+    node->data.assign.structLHS = NULL;   /* set by parser for p is f = ... */
     return node;
 }
 
@@ -373,6 +374,26 @@ ASTNode* createArrayIndex(char* name, ASTNode* index) {
     return node;
 }
 
+/* Create a struct type definition node  struct Name { ...fields... } */
+ASTNode* createStructDef(char* name, ASTNode* fields) {
+    ASTNode* node = malloc(sizeof(ASTNode));
+    node->type                  = NODE_STRUCT_DEF;
+    node->lineno                = yylineno;
+    node->data.struct_def.name   = strdup(name);
+    node->data.struct_def.fields = fields;
+    return node;
+}
+
+/* Create a struct field-access node  base is field   (e.g. p is health) */
+ASTNode* createStructAccess(ASTNode* base, char* field) {
+    ASTNode* node = malloc(sizeof(ASTNode));
+    node->type                     = NODE_STRUCT_ACCESS;
+    node->lineno                   = yylineno;
+    node->data.struct_access.base  = base;
+    node->data.struct_access.field = strdup(field);
+    return node;
+}
+
 /* ─────────────────────────────────────────────────────────────────────────
  * printAST  — pretty-print the entire tree (for debugging)
  * ───────────────────────────────────────────────────────────────────────── */
@@ -425,6 +446,38 @@ void printAST(ASTNode* node, int level) {
             break;
         }
 
+        case NODE_DECL:
+            indent(level);
+            printf("DECL: %s %s\n", node->data.decl.varType, node->data.decl.name);
+            break;
+
+        case NODE_ASSIGN:
+            indent(level);
+            if (node->data.assign.arrayLHS) {
+                printf("ASSIGN (array)\n");
+                printAST(node->data.assign.arrayLHS, level + 1);
+            } else if (node->data.assign.structLHS) {
+                printf("ASSIGN (struct)\n");
+                printAST(node->data.assign.structLHS, level + 1);
+            } else {
+                printf("ASSIGN: %s\n", node->data.assign.var);
+            }
+            printAST(node->data.assign.value, level + 1);
+            break;
+
+        case NODE_PRINT:
+            indent(level);
+            printf("PRINT\n");
+            printAST(node->data.expr, level + 1);
+            break;
+
+        case NODE_ID_LIST:
+            indent(level);
+            printf("ID: %s\n", node->data.idlist.name);
+            if (node->data.idlist.next)
+                printAST(node->data.idlist.next, level);
+            break;
+
         case NODE_FUNC_DEF:
             indent(level);
             printf("FUNC_DEF: %s\n", node->data.func_def.name);
@@ -456,6 +509,12 @@ void printAST(ASTNode* node, int level) {
         case NODE_ARG_LIST:
             printAST(node->data.arg_list.expr, level);
             printAST(node->data.arg_list.next, level);
+            break;
+
+        case NODE_STMT_LIST:
+            printAST(node->data.stmtlist.stmt, level);
+            if (node->data.stmtlist.next)
+                printAST(node->data.stmtlist.next, level);
             break;
 
         case NODE_PROGRAM_START:
@@ -519,6 +578,18 @@ void printAST(ASTNode* node, int level) {
             indent(level);
             printf("ARRAY_INDEX: %s\n", node->data.array_index.name);
             printAST(node->data.array_index.index, level + 1);
+            break;
+
+        case NODE_STRUCT_DEF:
+            indent(level);
+            printf("STRUCT_DEF: %s\n", node->data.struct_def.name);
+            printAST(node->data.struct_def.fields, level + 1);
+            break;
+
+        case NODE_STRUCT_ACCESS:
+            indent(level);
+            printf("STRUCT_ACCESS: .%s\n", node->data.struct_access.field);
+            printAST(node->data.struct_access.base, level + 1);
             break;
 
         case NODE_END_CLAUSE:

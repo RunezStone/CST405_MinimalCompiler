@@ -86,6 +86,16 @@ int yycolumn = 1;
     return NULLTOK;
 }
 
+"struct"        {
+    if (displayTokens) printf("  TOKEN: STRUCT keyword\n");
+    return STRUCT;
+}
+
+"is"            {
+    if (displayTokens) printf("  TOKEN: IS keyword\n");
+    return IS;
+}
+
 [a-zA-Z_][a-zA-Z0-9_]* {
     if (displayTokens) printf("  TOKEN: ID '%s'\n", yytext);
     yylval.str = strdup(yytext);
@@ -121,21 +131,23 @@ int yycolumn = 1;
 ","             { if (displayTokens) printf("  TOKEN: ','\n");  return ','; }
 "["             { if (displayTokens) printf("  TOKEN: '['\n");  return '['; }
 "]"             { if (displayTokens) printf("  TOKEN: ']'\n");  return ']'; }
+\x7B            { if (displayTokens) printf("  TOKEN: open-brace\n");  return 123; }
+\x7D            { if (displayTokens) printf("  TOKEN: close-brace\n");  return 125; }
 
 [ \t\r]         { }
 \n              { yycolumn = 1; }
 
 .               {
-    fprintf(stderr, "\n❌ Lexical Error at line %d, column %d:\n", yylineno, yycolumn - 1);
+    fprintf(stderr, "\nLexical Error at line %d, column %d:\n", yylineno, yycolumn - 1);
     fprintf(stderr, "   Unknown character: '%c' (ASCII %d)\n", *yytext, *yytext);
-    fprintf(stderr, "   💡 Suggestion: Remove this character or check for typos\n\n");
+    fprintf(stderr, "   Suggestion: Remove this character or check for typos\n\n");
 }
 
 <<EOF>>         {
     if (YY_START == COMMENT) {
-        fprintf(stderr, "\n❌ Lexical Error at line %d, column %d:\n", yylineno, yycolumn);
+        fprintf(stderr, "\nLexical Error at line %d, column %d:\n", yylineno, yycolumn);
         fprintf(stderr, "   Unterminated multi-line comment\n");
-        fprintf(stderr, "   💡 Suggestion: Add '*/' to close the comment\n\n");
+        fprintf(stderr, "   Suggestion: Add close marker to close the comment\n\n");
         return 0;
     }
     yyterminate();

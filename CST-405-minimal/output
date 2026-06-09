@@ -46,26 +46,6 @@ Lstart0:
     sw   $t0, 8($sp)   # x = ...
     j Lstart0
 Lend0:
-Lstart1:
-    lw $t0, 8($sp)
-    li $t1, 0
-    sgt $t0, $t0, $t1
-    beqz $t0, Lend1
-    lw $t0, 8($sp)
-    li $t1, 1
-    sub $t0, $t0, $t1
-    sw   $t0, 8($sp)   # x = ...
-    lw $t0, 8($sp)
-    # Print integer
-    move $a0, $t0
-    li   $v0, 1
-    syscall
-    # Print newline
-    li   $v0, 11
-    li   $a0, 10
-    syscall
-    j Lstart1
-Lend1:
     lw   $v0, 12($sp)   # return result
     lw   $ra, 124($sp)
     addi $sp, $sp, 128
@@ -79,8 +59,6 @@ main:
     # Declare int y at offset 4
     # Declare int result at offset 8
     # Declare stats playerStats at offset 12
-    li $t0, 10
-    sw $t0, 12($sp)   # playerStats.health = 10 (default)
     # Declare int playhealth at offset 20
     li $t0, 5
     sw   $t0, 0($sp)   # x = ...

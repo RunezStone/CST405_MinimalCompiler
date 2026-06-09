@@ -396,12 +396,29 @@ char* generateTACExpr(ASTNode* node) {
         case NODE_FUNC_CALL:
             return generateTACFuncCall(node);
 
-        case NODE_ARRAY_INDEX: {          
+        case NODE_ARRAY_INDEX: {
             char* index = generateTACExpr(node->data.array_index.index);
             char* temp  = newTemp();
             appendTAC(createTAC(TAC_ARRAY_LOAD,
                                 node->data.array_index.name,
                                 index, temp));
+            return temp;
+        }
+
+        case NODE_STRUCT_ACCESS: {
+            /* "base is field"  →  temp = base.field   (TAC_MEMBER_LOAD)
+             * The base is always a simple struct-variable reference
+             * (semantic analysis guarantees this); codegen resolves
+             * 'field' to a byte offset via the struct-type registry. */
+            ASTNode* base = node->data.struct_access.base;
+            char* baseName = (base && base->type == NODE_VAR)
+                                 ? strdup(base->data.name)
+                                 : generateTACExpr(base);
+            char* temp = newTemp();
+            appendTAC(createTAC(TAC_MEMBER_LOAD,
+                                baseName,
+                                strdup(node->data.struct_access.field),
+                                temp));
             return temp;
         }
 
@@ -555,6 +572,17 @@ case NODE_ASSIGN: {
         appendTAC(createTAC(TAC_ARRAY_STORE,
                             node->data.assign.arrayLHS->data.array_index.name,
                             index, val));
+    } else if (node->data.assign.structLHS) {
+        /* "base is field = expr;"  →  base.field = expr  (TAC_MEMBER_STORE) */
+        ASTNode* base = node->data.assign.structLHS->data.struct_access.base;
+        char* baseName = (base && base->type == NODE_VAR)
+                             ? strdup(base->data.name)
+                             : generateTACExpr(base);
+        char* val = generateTACExpr(node->data.assign.value);
+        appendTAC(createTAC(TAC_MEMBER_STORE,
+                            baseName,
+                            strdup(node->data.assign.structLHS->data.struct_access.field),
+                            val));
     } else {
         /* existing scalar assignment logic — unchanged */
         char* expr;
@@ -704,6 +732,14 @@ static void printOneInstr(FILE* out, TACInstr* curr, int lineNum) {
         break;
         case TAC_ARRAY_STORE:
             fprintf(out, "%s[%s] = %s\n",
+            curr->arg1, curr->arg2, curr->result);
+        break;
+        case TAC_MEMBER_LOAD:
+            fprintf(out, "%s = %s.%s\n",
+            curr->result, curr->arg1, curr->arg2);
+        break;
+        case TAC_MEMBER_STORE:
+            fprintf(out, "%s.%s = %s\n",
             curr->arg1, curr->arg2, curr->result);
         break;
         /* ── relational opcodes ── */
@@ -924,6 +960,21 @@ int optimizeTACPass(VarValue* values, int* valueCount) {
                          curr->arg1, curr->arg2, curr->result);
                 break;
 
+            case TAC_MEMBER_LOAD:
+            /* Don't propagate through struct-field loads — the field's
+             * value may have been changed via a different alias        */
+                newInstr = createTAC(TAC_MEMBER_LOAD,
+                         curr->arg1, curr->arg2, curr->result);
+                break;
+
+            case TAC_MEMBER_STORE:
+            /* Flush the propagation table — a store may change a value
+             * that a live variable was propagated from                 */
+                 *valueCount = 0;
+                newInstr = createTAC(TAC_MEMBER_STORE,
+                         curr->arg1, curr->arg2, curr->result);
+                break;
+
             /* ── NEW: control-flow opcodes ──
              * LABEL marks a merge point reachable from multiple paths
              * (e.g. loop back-edges), so any propagated constant values
@@ -991,6 +1042,7 @@ void eliminateDeadCode() {
             curr->op == TAC_CALL       ||
             curr->op == TAC_RETURN     ||
             curr->op == TAC_ARRAY_STORE||
+            curr->op == TAC_MEMBER_STORE||
             curr->op == TAC_LABEL      ||
             curr->op == TAC_GOTO       ||
             curr->op == TAC_IF_FALSE) {      /* control-flow is structural */
@@ -1070,6 +1122,8 @@ void saveOptimizedTACToFile(const char* filename) {
             case TAC_RETURN: fprintf(file, "%d: RETURN %s\n", lineNum, curr->arg1); break;
             case TAC_ARRAY_LOAD:  fprintf(file, "%d: %s = %s[%s]\n", lineNum, curr->result, curr->arg1, curr->arg2); break;
             case TAC_ARRAY_STORE: fprintf(file, "%d: %s[%s] = %s\n", lineNum, curr->arg1, curr->arg2, curr->result); break;
+            case TAC_MEMBER_LOAD:  fprintf(file, "%d: %s = %s.%s\n", lineNum, curr->result, curr->arg1, curr->arg2); break;
+            case TAC_MEMBER_STORE: fprintf(file, "%d: %s.%s = %s\n", lineNum, curr->arg1, curr->arg2, curr->result); break;
             case TAC_LT: fprintf(file, "%d: %s = %s < %s\n",  lineNum, curr->result, curr->arg1, curr->arg2); break;
             case TAC_LE: fprintf(file, "%d: %s = %s <= %s\n", lineNum, curr->result, curr->arg1, curr->arg2); break;
             case TAC_GT: fprintf(file, "%d: %s = %s > %s\n",  lineNum, curr->result, curr->arg1, curr->arg2); break;

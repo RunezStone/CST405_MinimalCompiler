@@ -43,6 +43,8 @@ ASTNode* root = NULL;          /* Root of the Abstract Syntax Tree */
 %token FUNC PROGRAM_START   /* Function keywords */
 %token END NULLTOK          /* End-clause keywords */
 %token WHILE CONTINUE       /* Loop keywords */
+%token STRUCT               /* Struct keyword: struct Name { ... }   */
+%token IS                   /* Field-access keyword: var is field    */
 %token <num> RELOP          /* Relational operator: carries op code
                                '<' '>' 'l'(<=) 'g'(>=) 'e'(==) 'n'(!=) */
 
@@ -59,10 +61,12 @@ ASTNode* root = NULL;          /* Root of the Abstract Syntax Tree */
 %type <node> id_list
 %type <node> expr
 %type <node> func_call arg_list
+%type <node> struct_def field_body field_item
 
 /* OPERATOR PRECEDENCE */
 %left '+' '-'
 %left '*' '/'
+%left IS
 %right UMINUS
 
 %%
@@ -331,6 +335,16 @@ decl:
         $$ = createArrayDecl($2, $4);
         free($2);
     }
+    | struct_def {
+        /* Struct type definition:  struct stats { ... }  */
+        $$ = $1;
+    }
+    | ID id_list ';' {
+        /* Struct variable declaration:  stats playerStats;
+         * (also allows "stats a, b;" via id_list)            */
+        $$ = createMultiDeclTyped($2, $1);
+        free($1);
+    }
     | INT id_list error {
         fprintf(stderr, "\n❌ Syntax Error at line %d:\n", yylineno);
         fprintf(stderr, "   Missing semicolon after variable declaration\n");
@@ -369,6 +383,14 @@ assign:
     node->data.assign.arrayLHS = lhs;
     $$ = node;
     free($1);
+    }
+    | expr IS ID '=' expr ';' {
+        /* Struct field assignment:  playerStats is health = 10; */
+        ASTNode* lhs = createStructAccess($1, $3);
+        ASTNode* node = createAssign(NULL, $5);
+        node->data.assign.structLHS = lhs;
+        $$ = node;
+        free($3);
     }
     | ID '=' expr error {
         fprintf(stderr, "\n❌ Syntax Error at line %d:\n", yylineno);
@@ -499,9 +521,62 @@ expr:
         /* Parenthesized expression */
         $$ = $2;
     }
-    | ID '[' expr ']' {   
+    | ID '[' expr ']' {
         $$ = createArrayIndex($1, $3);
-        free($1); 
+        free($1);
+    }
+    | expr IS ID {
+        /* Struct field access (rvalue):  playerStats is health */
+        $$ = createStructAccess($1, $3);
+        free($3);
+    }
+    ;
+
+/* ================================================================
+ * STRUCT DEFINITION
+ *   "struct Name { <fields> }"
+ *   field_body mixes scalar/array field declarations and
+ *   default-value assignments (e.g. "health = 10;").
+ *   Structs can store variables but cannot store functions.
+ * ================================================================ */
+
+struct_def:
+    STRUCT ID '{' field_body '}' {
+        $$ = createStructDef($2, $4);
+        free($2);
+    }
+    ;
+
+field_body:
+    field_item {
+        $$ = $1;
+    }
+    | field_body field_item {
+        $$ = createStmtList($1, $2);
+    }
+    ;
+
+field_item:
+    INT ID ';' {
+        $$ = createDecl("int", $2);
+        free($2);
+    }
+    | FLOAT ID ';' {
+        $$ = createDecl("float", $2);
+        free($2);
+    }
+    | INT ID '[' NUM ']' ';' {
+        $$ = createArrayDeclTyped($2, $4, "int");
+        free($2);
+    }
+    | FLOAT ID '[' NUM ']' ';' {
+        $$ = createArrayDeclTyped($2, $4, "float");
+        free($2);
+    }
+    | ID '=' expr ';' {
+        /* Default field value, e.g. "health = 10;" */
+        $$ = createAssign($1, $3);
+        free($1);
     }
     ;
 

@@ -21,6 +21,12 @@
  *  TAC_ARG         value/var       —               —
  *  TAC_CALL        dest temp       func name       arg count (str)
  *  TAC_RETURN      value/var       —               —
+ *  TAC_MEMBER_LOAD  dest temp      base var name   field name
+ *  TAC_MEMBER_STORE value/var      base var name   field name
+ *
+ *  (Codegen resolves the field name to a byte offset via the global
+ *   struct-type registry — see symtab.h — exactly like array loads/
+ *   stores resolve indices; TAC stays type-/offset-agnostic.)
  */
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -46,6 +52,11 @@ typedef enum {
     TAC_RETURN,     /* return value:       RETURN     value    */
     TAC_ARRAY_LOAD, /* t0 = arr[i]                             */
     TAC_ARRAY_STORE,/* arr[i] = t0                             */
+
+    /* Struct field opcodes — arg2 carries the field's byte offset
+     * (encoded as a decimal string) within the struct instance     */
+    TAC_MEMBER_LOAD,  /* result = arg1.field   →  result = base[offset]  */
+    TAC_MEMBER_STORE, /* arg1.field = result   →  base[offset] = result  */
 
     /* Relational opcodes — result = (arg1 <op> arg2), yields 0 or 1 */
     TAC_LT,         /* result = arg1 <  arg2                   */

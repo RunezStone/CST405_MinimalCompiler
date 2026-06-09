@@ -38,6 +38,7 @@ typedef struct {
 
 typedef struct {
     char* names[MAX_VARS];
+    char* structTypeNames[MAX_VARS]; /* NULL unless this var is struct-typed */
     int   count;
 } Scope;
 
@@ -77,6 +78,10 @@ static void exitScope(void) {
     for (int i = 0; i < scopes[scopeDepth - 1].count; i++) {
         free(scopes[scopeDepth - 1].names[i]);
         scopes[scopeDepth - 1].names[i] = NULL;
+        if (scopes[scopeDepth - 1].structTypeNames[i]) {
+            free(scopes[scopeDepth - 1].structTypeNames[i]);
+            scopes[scopeDepth - 1].structTypeNames[i] = NULL;
+        }
     }
     scopeDepth--;
 }
@@ -112,7 +117,11 @@ static void printSemanticScopes(void) {
     printf("└─────────────────────────────────────────────────────────────┘\n\n");
 }
 
-static int addVarToScope(char* name) {
+/* Add a variable to the current scope. If structTypeName is non-NULL,
+ * the variable is recorded as struct-typed (used later to validate
+ * "var is field" accesses).  Returns 0 on success, -1 on duplicate /
+ * scope-full / no-active-scope.                                      */
+static int addVarToScopeTyped(char* name, const char* structTypeName) {
     if (scopeDepth == 0) {
         fprintf(stderr, "SEMANTIC ERROR: No active scope\n");
         return -1;
@@ -124,8 +133,14 @@ static int addVarToScope(char* name) {
         fprintf(stderr, "SEMANTIC ERROR: Too many variables in scope\n");
         return -1;
     }
-    cur->names[cur->count++] = strdup(name);
+    cur->names[cur->count]           = strdup(name);
+    cur->structTypeNames[cur->count] = structTypeName ? strdup(structTypeName) : NULL;
+    cur->count++;
     return 0;
+}
+
+static int addVarToScope(char* name) {
+    return addVarToScopeTyped(name, NULL);
 }
 
 static int isVarDeclaredInScope(char* name) {
@@ -133,6 +148,16 @@ static int isVarDeclaredInScope(char* name) {
         for (int i = 0; i < scopes[d].count; i++)
             if (strcmp(scopes[d].names[i], name) == 0) return 1;
     return 0;
+}
+
+/* Returns the struct type name bound to 'name' in the nearest enclosing
+ * scope, or NULL if 'name' is not declared or is not struct-typed.   */
+static char* getVarStructTypeInScope(char* name) {
+    for (int d = scopeDepth - 1; d >= 0; d--)
+        for (int i = 0; i < scopes[d].count; i++)
+            if (strcmp(scopes[d].names[i], name) == 0)
+                return scopes[d].structTypeNames[i];
+    return NULL;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -230,6 +255,75 @@ static int countArgs(ASTNode* args) {
 static void checkExpr(ASTNode* node);
 static void checkStmt(ASTNode* node);
 static void checkStmtList(ASTNode* node);
+static void checkStructAccess(ASTNode* node);
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * STRUCT FIELD-ACCESS CHECKER  ("base is field")
+ *
+ * Validates that:
+ *   1. The base expression is a simple variable reference
+ *   2. That variable is declared and is struct-typed
+ *   3. The struct type actually has a field with this name
+ * ───────────────────────────────────────────────────────────────────────── */
+static void checkStructAccess(ASTNode* node) {
+    if (!node || node->type != NODE_STRUCT_ACCESS) return;
+
+    ASTNode* base = node->data.struct_access.base;
+    char*    field = node->data.struct_access.field;
+
+    /* Recursively check the base expression first (handles undeclared-var
+     * errors and nested struct accesses uniformly).                     */
+    checkExpr(base);
+
+    if (!base || base->type != NODE_VAR) {
+        fprintf(stderr,
+            "\n╔════════════════════════════════════════════════════════════╗\n"
+            "║ SEMANTIC ERROR - Invalid Struct Access                     ║\n"
+            "╚════════════════════════════════════════════════════════════╝\n"
+            "  📍 Line %d\n"
+            "  ❌ 'is %s' must follow a struct variable name\n"
+            "  💡 Use: <structVar> is %s\n\n",
+            node->lineno, field, field);
+        semInfo.errorCount++;
+        return;
+    }
+
+    char* varName = base->data.name;
+    if (!isVarDeclaredInScope(varName)) {
+        /* checkExpr() already reported "undeclared variable" above */
+        return;
+    }
+
+    char* structTypeName = getVarStructTypeInScope(varName);
+    if (structTypeName == NULL) {
+        fprintf(stderr,
+            "\n╔════════════════════════════════════════════════════════════╗\n"
+            "║ SEMANTIC ERROR - Not a Struct Variable                     ║\n"
+            "╚════════════════════════════════════════════════════════════╝\n"
+            "  📍 Line %d\n"
+            "  ❌ '%s' is not a struct-typed variable — cannot use 'is %s'\n"
+            "  💡 Declare it as 'StructName %s;' to access fields with 'is'\n\n",
+            node->lineno, varName, field, varName);
+        semInfo.errorCount++;
+        return;
+    }
+
+    StructTypeInfo* st = findStructType(structTypeName);
+    if (st == NULL || findStructField(st, field) == NULL) {
+        fprintf(stderr,
+            "\n╔════════════════════════════════════════════════════════════╗\n"
+            "║ SEMANTIC ERROR - Unknown Struct Field                      ║\n"
+            "╚════════════════════════════════════════════════════════════╝\n"
+            "  📍 Line %d\n"
+            "  ❌ Struct '%s' has no field named '%s'\n"
+            "  💡 Check the field name against the 'struct %s { ... }' definition\n\n",
+            node->lineno, structTypeName, field, structTypeName);
+        semInfo.errorCount++;
+    } else {
+        printf("  ✓ Struct field access '%s is %s'  (line %d)\n",
+               varName, field, node->lineno);
+    }
+}
 
 /* ─────────────────────────────────────────────────────────────────────────
  * EXPRESSION CHECKER
@@ -310,6 +404,10 @@ static void checkExpr(ASTNode* node) {
             break;
         }
 
+        case NODE_STRUCT_ACCESS:
+            checkStructAccess(node);
+            break;
+
         case NODE_ARRAY_INDEX:
             if (!isVarDeclaredInScope(node->data.array_index.name)) {
                 fprintf(stderr,
@@ -339,8 +437,13 @@ static void checkStmt(ASTNode* node) {
 
     switch (node->type) {
 
-        case NODE_DECL:
-            if (addVarToScope(node->data.decl.name) == -1) {
+        case NODE_DECL: {
+            /* If varType names a registered struct type, this is a
+             * struct-typed variable declaration (e.g. "stats playerStats;") */
+            char* declType   = node->data.decl.varType;
+            int   isStructTy = (declType && findStructType(declType) != NULL);
+
+            if (addVarToScopeTyped(node->data.decl.name, isStructTy ? declType : NULL) == -1) {
                 fprintf(stderr,
                     "\n╔════════════════════════════════════════════════════════════╗\n"
                     "║ SEMANTIC ERROR - Duplicate Variable Declaration            ║\n"
@@ -350,16 +453,23 @@ static void checkStmt(ASTNode* node) {
                     "  💡 Remove the duplicate, or use a different name\n\n",
                     node->lineno, node->data.decl.name);
                 semInfo.errorCount++;
+            } else if (isStructTy) {
+                printf("  ✓ Struct variable '%s' of type '%s' declared  (line %d)\n",
+                       node->data.decl.name, declType, node->lineno);
             } else {
                 printf("  ✓ Variable '%s' declared  (line %d)\n",
                        node->data.decl.name, node->lineno);
             }
             break;
+        }
 
         case NODE_ASSIGN:
             if (node->data.assign.arrayLHS) {
                 checkExpr(node->data.assign.arrayLHS);
                 printf("  ✓ Array-element assignment  (line %d)\n", node->lineno);
+            } else if (node->data.assign.structLHS) {
+                checkStructAccess(node->data.assign.structLHS);
+                printf("  ✓ Struct-field assignment  (line %d)\n", node->lineno);
             } else {
                 if (!isVarDeclaredInScope(node->data.assign.var)) {
                     fprintf(stderr,
@@ -552,6 +662,115 @@ static void checkFuncDef(ASTNode* node) {
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
+ * STRUCT TYPE REGISTRATION  (pre-pass, runs before Pass 1)
+ *
+ * Walks "struct Name { ... }" definitions and records each field's
+ * name/type/offset in the global struct-type registry (symtab.h).
+ * field_body mixes:
+ *   NODE_DECL        → scalar field   "int health;"
+ *   NODE_ARRAY_DECL  → array field    "int scores[5];"
+ *   NODE_ASSIGN      → default value  "health = 10;" (field must already
+ *                                      be declared earlier in the struct)
+ * Per spec, "Structs can store variables but cannot store functions" —
+ * the grammar already makes it impossible to nest a func_def inside a
+ * struct_def, so no additional check is needed for that here.
+ * ───────────────────────────────────────────────────────────────────────── */
+static void registerStructFields(StructTypeInfo* st, ASTNode* node) {
+    if (!node || !st) return;
+    switch (node->type) {
+        case NODE_STMT_LIST:
+            registerStructFields(st, node->data.stmtlist.stmt);
+            registerStructFields(st, node->data.stmtlist.next);
+            break;
+
+        case NODE_DECL:
+            addStructField(st, node->data.decl.name, node->data.decl.varType, 0, 0);
+            break;
+
+        case NODE_ARRAY_DECL:
+            addStructField(st, node->data.array_decl.name,
+                           node->data.array_decl.varType,
+                           1, node->data.array_decl.size);
+            break;
+
+        case NODE_ASSIGN:
+            /* Default field value, e.g. "health = 10;" — the field must
+             * already have been declared earlier in the same struct.   */
+            if (node->data.assign.var &&
+                findStructField(st, node->data.assign.var) == NULL) {
+                fprintf(stderr,
+                    "\n╔════════════════════════════════════════════════════════════╗\n"
+                    "║ SEMANTIC ERROR - Unknown Struct Field                      ║\n"
+                    "╚════════════════════════════════════════════════════════════╝\n"
+                    "  📍 Line %d\n"
+                    "  ❌ Struct '%s' has no field named '%s' to assign a default value to\n"
+                    "  💡 Declare 'int %s;' (or 'float %s;') before assigning to it\n\n",
+                    node->lineno, st->name, node->data.assign.var,
+                    node->data.assign.var, node->data.assign.var);
+                semInfo.errorCount++;
+            } else {
+                printf("  ✓ Struct '%s' field '%s' has a default value (line %d)\n",
+                       st->name, node->data.assign.var, node->lineno);
+
+                /* Record the literal so codegen can initialize the field
+                 * whenever a variable of this struct type is declared.
+                 * Only constant literals are supported as defaults.    */
+                ASTNode* val = node->data.assign.value;
+                if (val && val->type == NODE_NUM) {
+                    setStructFieldDefault(st, node->data.assign.var,
+                                          0, val->data.num, 0.0f);
+                } else if (val && val->type == NODE_FLOAT) {
+                    setStructFieldDefault(st, node->data.assign.var,
+                                          1, 0, val->data.fval);
+                } else {
+                    fprintf(stderr,
+                        "\n  ⚠ Warning (line %d): default value for '%s.%s' "
+                        "is not a constant literal — it will be ignored\n\n",
+                        node->lineno, st->name, node->data.assign.var);
+                }
+            }
+            break;
+
+        default:
+            break;
+    }
+}
+
+static void registerStructs(ASTNode* node) {
+    if (!node) return;
+    switch (node->type) {
+        case NODE_PROGRAM:
+            registerStructs(node->data.program.globals);
+            break;
+        case NODE_STMT_LIST:
+            registerStructs(node->data.stmtlist.stmt);
+            registerStructs(node->data.stmtlist.next);
+            break;
+        case NODE_STRUCT_DEF: {
+            if (findStructType(node->data.struct_def.name) != NULL) {
+                fprintf(stderr,
+                    "\n╔════════════════════════════════════════════════════════════╗\n"
+                    "║ SEMANTIC ERROR - Duplicate Struct Definition               ║\n"
+                    "╚════════════════════════════════════════════════════════════╝\n"
+                    "  📍 Line %d\n"
+                    "  ❌ Struct type '%s' is defined more than once\n"
+                    "  💡 Remove or rename one of the definitions.\n\n",
+                    node->lineno, node->data.struct_def.name);
+                semInfo.errorCount++;
+                break;
+            }
+            StructTypeInfo* st = registerStructType(node->data.struct_def.name);
+            registerStructFields(st, node->data.struct_def.fields);
+            printf("  ✓ Struct '%s' registered (%d field(s), %d byte(s))\n",
+                   st->name, st->fieldCount, st->totalSize);
+            break;
+        }
+        default:
+            break;
+    }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
  * PASS 1 — REGISTER ALL FUNCTION SIGNATURES
  * ───────────────────────────────────────────────────────────────────────── */
 static void registerFunctions(ASTNode* node) {
@@ -601,17 +820,24 @@ static void checkAll(ASTNode* node) {
             checkFuncDef(node);
             printf("\n");
             break;
-        case NODE_DECL:
-            if (addVarToScope(node->data.decl.name) == -1) {
+        case NODE_DECL: {
+            char* declType   = node->data.decl.varType;
+            int   isStructTy = (declType && findStructType(declType) != NULL);
+
+            if (addVarToScopeTyped(node->data.decl.name, isStructTy ? declType : NULL) == -1) {
                 fprintf(stderr,
                     "  ❌ SEMANTIC ERROR: Global variable '%s' already declared\n",
                     node->data.decl.name);
                 semInfo.errorCount++;
+            } else if (isStructTy) {
+                printf("  ✓ Global struct variable '%s' of type '%s' declared\n",
+                       node->data.decl.name, declType);
             } else {
                 printf("  ✓ Global variable '%s' declared\n",
                        node->data.decl.name);
             }
             break;
+        }
         case NODE_ARRAY_DECL:
             if (node->data.array_decl.size <= 0) {
                 fprintf(stderr,
@@ -655,6 +881,8 @@ void initSemantic(void) {
     currentFunction      = NULL;
     inFunction           = 0;
 
+    initStructTypes();
+
     /* Register built-in print() */
     functions[functionCount].name       = strdup("print");
     functions[functionCount].paramCount = 1;
@@ -677,6 +905,11 @@ int performSemanticAnalysis(ASTNode* root) {
     enterScope();
     printf("Entered global scope\n");
     printSemanticScopes();
+
+    printf("Pass 0: Registering struct types\n");
+    printf("───────────────────────────────────────\n");
+    registerStructs(root);
+    printf("\n");
 
     printf("Pass 1: Registering function signatures\n");
     printf("───────────────────────────────────────\n");

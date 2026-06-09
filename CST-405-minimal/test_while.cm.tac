@@ -23,15 +23,28 @@
 20: x = t3
 21: GOTO L0
 22: LABEL L1:
-23: RETURN result
-24: FUNC_END add
-25: FUNC_BEGIN Program_Start
-26: x = 5
-27: y = 10
-28: ARG x
-29: ARG y
-30: t4 = CALL add, 2
-31: result = t4
-32: result = 0
-33: PRINT result
-34: FUNC_END Program_Start
+23: LABEL L2:
+24: t4 = x > 0
+25: IF_FALSE t4 GOTO L3
+26: t5 = x - 1
+27: x = t5
+28: PRINT x
+29: GOTO L2
+30: LABEL L3:
+31: RETURN result
+32: FUNC_END add
+33: FUNC_BEGIN Program_Start
+34: DECL stats playerStats
+35: DECL int playhealth
+36: x = 5
+37: y = 10
+38: ARG x
+39: ARG y
+40: t6 = CALL add, 2
+41: result = t6
+42: result = 0
+43: t7 = playerStats.health
+44: playhealth = t7
+45: PRINT playhealth
+46: PRINT result
+47: FUNC_END Program_Start

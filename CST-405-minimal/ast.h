@@ -50,7 +50,11 @@ typedef enum {
 
     /* ── Arrays ── */
     NODE_ARRAY_DECL,    /* Array declaration           e.g. int arr[10] */
-    NODE_ARRAY_INDEX    /* Array element access        e.g. arr[i]      */
+    NODE_ARRAY_INDEX,   /* Array element access        e.g. arr[i]      */
+
+    /* ── Structs ── */
+    NODE_STRUCT_DEF,    /* Struct type definition      struct S { ... } */
+    NODE_STRUCT_ACCESS  /* Struct field access         e.g. p is field  */
 } NodeType;
 
 
@@ -89,12 +93,15 @@ typedef struct ASTNode {
         } binop;
 
         /* NODE_ASSIGN ─ assignment statement
-         *   Scalar:  var != NULL, arrayLHS == NULL
-         *   Array:   var == NULL, arrayLHS points to NODE_ARRAY_INDEX  */
+         *   Scalar:  var != NULL, arrayLHS == NULL, structLHS == NULL
+         *   Array:   var == NULL, arrayLHS points to NODE_ARRAY_INDEX
+         *   Struct:  var == NULL, structLHS points to NODE_STRUCT_ACCESS
+         *            e.g. "playerStats is health = 10;"                */
         struct {
             char*           var;       /* Target variable name (scalar) */
             struct ASTNode* value;     /* RHS expression                */
             struct ASTNode* arrayLHS;  /* LHS index node (array assign) */
+            struct ASTNode* structLHS; /* LHS field node (struct assign)*/
         } assign;
 
         /* NODE_PRINT ─ single expression to print */
@@ -205,6 +212,27 @@ typedef struct ASTNode {
             struct ASTNode* index;  /* Index expression    */
         } array_index;
 
+        /* NODE_STRUCT_DEF ─ struct type definition
+         *   "struct Name { <field declarations / default-value
+         *                   assignments> }"
+         *   fields is a NODE_STMT_LIST chain mixing NODE_DECL,
+         *   NODE_ARRAY_DECL (field declarations) and NODE_ASSIGN
+         *   (default-value initializers like "health = 10;").
+         *   The semantic analyzer walks this list once to build the
+         *   struct type's field/offset table.                         */
+        struct {
+            char*           name;    /* Struct type name              */
+            struct ASTNode* fields;  /* STMT_LIST of field decls/defaults */
+        } struct_def;
+
+        /* NODE_STRUCT_ACCESS ─ field access  e.g. "playerStats is health"
+         *   Used both as an rvalue (read) and, wrapped in
+         *   NODE_ASSIGN.structLHS, as an lvalue (write).              */
+        struct {
+            struct ASTNode* base;   /* Base expression (usually NODE_VAR) */
+            char*           field;  /* Field name                         */
+        } struct_access;
+
     } data;
 
 } ASTNode;
@@ -262,6 +290,10 @@ ASTNode* createArrayDecl(char* name, int size);
 ASTNode* createArrayDeclTyped(char* name, int size, char* type);
 ASTNode* createArrayParam(char* name);
 ASTNode* createArrayIndex(char* name, ASTNode* index);
+
+/* Structs */
+ASTNode* createStructDef(char* name, ASTNode* fields);
+ASTNode* createStructAccess(ASTNode* base, char* field);
 
 /* Debug / display */
 void printAST(ASTNode* node, int level);

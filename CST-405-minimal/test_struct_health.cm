@@ -8,32 +8,20 @@ int x;
 int y;
 int result;
 
-
 func add(int a, int b)
     int x;
     int result;
     x = 0;
     result = a + b;
-
     while (x = 0; x < 10; x = x + 1)
         print(result);
         result = result + x;
     continue;
-
-    while (x > 0)
-    
-        x = x - 1;
-        print(x);
-    continue;
-
     end result;
 
-
 Program_Start()
-
     stats playerStats;
     int playhealth;
-
     x = 5;
     y = 10;
     result = add(x, y);
