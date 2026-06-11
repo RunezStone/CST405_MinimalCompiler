@@ -13,6 +13,83 @@ static int tempReg = 0;
 /* Counter for generating unique loop labels (Lstart0/Lend0, Lstart1/Lend1, ...) */
 static int loopLabelCount = 0;
 
+/* Frame size of the current function — set by genFuncDef so that
+ * early-return (end) statements inside if bodies can emit the epilogue. */
+static int currentFrameSize = 128;
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * GLOBAL VARIABLE TABLE
+ * Pre-scanned before any function is generated.  $s7 is set to $sp
+ * at the start of main so functions can reach globals via N($s7).
+ * ───────────────────────────────────────────────────────────────────────── */
+#define MAX_GLOBALS 100
+static struct {
+    char name[64];
+    char structType[64]; /* struct type name, or "" for scalars/arrays */
+    int  offset;
+} globalVars[MAX_GLOBALS];
+static int globalVarCount  = 0;
+static int globalNextOffset = 0;
+
+static void addGlobal(const char* name, const char* structTypeName, int bytes) {
+    if (globalVarCount >= MAX_GLOBALS) return;
+    strncpy(globalVars[globalVarCount].name, name, 63);
+    globalVars[globalVarCount].name[63] = '\0';
+    if (structTypeName) {
+        strncpy(globalVars[globalVarCount].structType, structTypeName, 63);
+        globalVars[globalVarCount].structType[63] = '\0';
+    } else {
+        globalVars[globalVarCount].structType[0] = '\0';
+    }
+    globalVars[globalVarCount].offset = globalNextOffset;
+    globalNextOffset += bytes;
+    globalVarCount++;
+}
+
+/* Look up a global variable's offset.  Returns -1 if not found. */
+static int getGlobalVarOffset(const char* name) {
+    for (int i = 0; i < globalVarCount; i++)
+        if (strcmp(globalVars[i].name, name) == 0)
+            return globalVars[i].offset;
+    return -1;
+}
+
+/* Look up a global variable's struct type name. Returns NULL if scalar. */
+static const char* getGlobalStructType(const char* name) {
+    for (int i = 0; i < globalVarCount; i++)
+        if (strcmp(globalVars[i].name, name) == 0)
+            return globalVars[i].structType[0] ? globalVars[i].structType : NULL;
+    return NULL;
+}
+
+/* Walk the globals AST and record every variable's offset so functions
+ * can use $s7-relative addressing to reach them.                       */
+static void scanGlobals(ASTNode* node) {
+    if (!node) return;
+    switch (node->type) {
+        case NODE_DECL: {
+            StructTypeInfo* st = findStructType(node->data.decl.varType);
+            if (st) {
+                addGlobal(node->data.decl.name, node->data.decl.varType,
+                          st->totalSize);
+            } else {
+                addGlobal(node->data.decl.name, NULL, 4);
+            }
+            break;
+        }
+        case NODE_ARRAY_DECL:
+            addGlobal(node->data.array_decl.name, NULL,
+                      node->data.array_decl.size * 4);
+            break;
+        case NODE_STMT_LIST:
+            scanGlobals(node->data.stmtlist.stmt);
+            scanGlobals(node->data.stmtlist.next);
+            break;
+        default:
+            break; /* NODE_STRUCT_DEF, NODE_ASSIGN defaults, etc. — skip */
+    }
+}
+
 static int getNextTemp() {
     int reg = tempReg++;
     if (tempReg > 7) tempReg = 0;
@@ -45,14 +122,21 @@ static void genExpr(ASTNode* node) {
 
         case NODE_VAR: {
             int offset = getVarOffset(node->data.name);
-            if (offset == -1) {
-                fprintf(stderr,
-                    "CODEGEN ERROR: Variable '%s' not in symbol table\n",
-                    node->data.name);
-                exit(1);
+            int reg    = getNextTemp();
+            if (offset != -1) {
+                fprintf(output, "    lw $t%d, %d($sp)\n", reg, offset);
+            } else {
+                int goffset = getGlobalVarOffset(node->data.name);
+                if (goffset != -1) {
+                    fprintf(output, "    lw $t%d, %d($s7)   # global %s\n",
+                            reg, goffset, node->data.name);
+                } else {
+                    fprintf(stderr,
+                        "CODEGEN ERROR: Variable '%s' not declared\n",
+                        node->data.name);
+                    exit(1);
+                }
             }
-            int reg = getNextTemp();
-            fprintf(output, "    lw $t%d, %d($sp)\n", reg, offset);
             break;
         }
 
@@ -69,25 +153,37 @@ static void genExpr(ASTNode* node) {
                     "CODEGEN ERROR: Struct access base must be a simple variable\n");
                 exit(1);
             }
-            int baseOffset = getVarOffset(baseName);
-            char* structTypeName = getVarStructType(baseName);
-            if (baseOffset == -1 || structTypeName == NULL) {
+            int         baseOffset     = getVarOffset(baseName);
+            const char* structTypeName = getVarStructType(baseName);
+            /* Fall back to global table if not in local frame */
+            int isGlobal = 0;
+            if (baseOffset == -1) {
+                baseOffset     = getGlobalVarOffset(baseName);
+                structTypeName = getGlobalStructType(baseName);
+                isGlobal       = 1;
+            }
+            if (baseOffset == -1) {
                 fprintf(stderr,
                     "CODEGEN ERROR: '%s' is not a declared struct variable\n", baseName);
                 exit(1);
             }
-            StructTypeInfo* st = findStructType(structTypeName);
+            StructTypeInfo* st = structTypeName ? findStructType(structTypeName) : NULL;
             StructField*    f  = st ? findStructField(st, field) : NULL;
             if (!f) {
                 fprintf(stderr,
-                    "CODEGEN ERROR: Struct '%s' has no field '%s'\n",
-                    structTypeName, field);
+                    "CODEGEN ERROR: Cannot resolve field '%s' on '%s'\n",
+                    field, baseName);
                 exit(1);
             }
             int totalOffset = baseOffset + f->offset;
             int reg = getNextTemp();
-            fprintf(output, "    lw $t%d, %d($sp)   # %s is %s\n",
-                    reg, totalOffset, baseName, field);
+            if (isGlobal) {
+                fprintf(output, "    lw $t%d, %d($s7)   # global %s is %s\n",
+                        reg, totalOffset, baseName, field);
+            } else {
+                fprintf(output, "    lw $t%d, %d($sp)   # %s is %s\n",
+                        reg, totalOffset, baseName, field);
+            }
             break;
         }
 
@@ -215,6 +311,7 @@ static void genFuncDef(ASTNode* node) {
      * (enough for up to 28 local ints + saved $ra).
      * The lecture notes use a similar fixed approach.        */
     int frameSize = 128;
+    currentFrameSize = frameSize;   /* make visible to early-return stmts */
 
     /* ── Function label ── */
     fprintf(output, "\n# -- Function: %s --\n", node->data.func_def.name);
@@ -351,57 +448,80 @@ void genStmt(ASTNode* node) {
                         "CODEGEN ERROR: Struct assignment base must be a simple variable\n");
                     exit(1);
                 }
-                int baseOffset = getVarOffset(baseName);
-                char* structTypeName = getVarStructType(baseName);
-                if (baseOffset == -1 || structTypeName == NULL) {
+                int         baseOffset     = getVarOffset(baseName);
+                const char* structTypeName = getVarStructType(baseName);
+                int         isGlobal       = 0;
+                if (baseOffset == -1) {
+                    baseOffset     = getGlobalVarOffset(baseName);
+                    structTypeName = getGlobalStructType(baseName);
+                    isGlobal       = 1;
+                }
+                if (baseOffset == -1) {
                     fprintf(stderr,
                         "CODEGEN ERROR: '%s' is not a declared struct variable\n", baseName);
                     exit(1);
                 }
-                StructTypeInfo* st = findStructType(structTypeName);
+                StructTypeInfo* st = structTypeName ? findStructType(structTypeName) : NULL;
                 StructField*    f  = st ? findStructField(st, field) : NULL;
                 if (!f) {
                     fprintf(stderr,
-                        "CODEGEN ERROR: Struct '%s' has no field '%s'\n",
-                        structTypeName, field);
+                        "CODEGEN ERROR: Cannot resolve field '%s' on '%s'\n",
+                        field, baseName);
                     exit(1);
                 }
                 int totalOffset = baseOffset + f->offset;
                 genExpr(node->data.assign.value);
-                fprintf(output, "    sw   $t%d, %d($sp)   # %s is %s = ...\n",
-                        tempReg - 1, totalOffset, baseName, field);
+                if (isGlobal)
+                    fprintf(output, "    sw   $t%d, %d($s7)   # global %s is %s = ...\n",
+                            tempReg - 1, totalOffset, baseName, field);
+                else
+                    fprintf(output, "    sw   $t%d, %d($sp)   # %s is %s = ...\n",
+                            tempReg - 1, totalOffset, baseName, field);
                 tempReg = 0;
                 break;
             }
 
-            /* ── NEW: handle func call on RHS ── */
+            /* ── helper macro: resolve scalar variable offset + base register ── */
+            #define RESOLVE_VAR(varname, out_offset, out_reg_str)       \
+                do {                                                     \
+                    int _lo = getVarOffset(varname);                     \
+                    if (_lo != -1) {                                     \
+                        (out_offset)   = _lo;                           \
+                        (out_reg_str)  = "$sp";                         \
+                    } else {                                             \
+                        int _go = getGlobalVarOffset(varname);          \
+                        if (_go != -1) {                                 \
+                            (out_offset)  = _go;                        \
+                            (out_reg_str) = "$s7";                      \
+                        } else {                                         \
+                            fprintf(stderr,                              \
+                                "CODEGEN ERROR: Variable '%s' not declared\n", \
+                                varname);                                \
+                            exit(1);                                     \
+                        }                                                \
+                    }                                                    \
+                } while (0)
+
+            /* ── handle func call on RHS ── */
             if (node->data.assign.value &&
                 node->data.assign.value->type == NODE_FUNC_CALL) {
                 genFuncCall(node->data.assign.value);
-                /* Result is in $v0 — store to destination variable */
-                int offset = getVarOffset(node->data.assign.var);
-                if (offset == -1) {
-                    fprintf(stderr,
-                        "CODEGEN ERROR: Variable '%s' not declared\n",
-                        node->data.assign.var);
-                    exit(1);
-                }
-                fprintf(output, "    sw   $v0, %d($sp)   # %s = call result\n",
-                        offset, node->data.assign.var);
+                int   off = 0;
+                const char* breg = NULL;
+                RESOLVE_VAR(node->data.assign.var, off, breg);
+                fprintf(output, "    sw   $v0, %d(%s)   # %s = call result\n",
+                        off, breg, node->data.assign.var);
                 tempReg = 0;
             } else {
-                int offset = getVarOffset(node->data.assign.var);
-                if (offset == -1) {
-                    fprintf(stderr,
-                        "CODEGEN ERROR: Variable '%s' not declared\n",
-                        node->data.assign.var);
-                    exit(1);
-                }
+                int   off = 0;
+                const char* breg = NULL;
+                RESOLVE_VAR(node->data.assign.var, off, breg);
                 genExpr(node->data.assign.value);
-                fprintf(output, "    sw   $t%d, %d($sp)   # %s = ...\n",
-                        tempReg - 1, offset, node->data.assign.var);
+                fprintf(output, "    sw   $t%d, %d(%s)   # %s = ...\n",
+                        tempReg - 1, off, breg, node->data.assign.var);
                 tempReg = 0;
             }
+            #undef RESOLVE_VAR
             break;
         }
 
@@ -423,6 +543,36 @@ void genStmt(ASTNode* node) {
             genFuncCall(node);
             break;
 
+        /* ── early return: end x; / end 0; / end null; inside a block ──
+         * Loads the return value into $v0 (if any), then runs the
+         * standard function epilogue and jumps to $ra.               */
+        case NODE_END_CLAUSE: {
+            const char* retName = node->data.name;
+            if (retName != NULL) {
+                if (retName[0] >= '0' && retName[0] <= '9') {
+                    /* Numeric literal — e.g. end 1; */
+                    fprintf(output, "    li   $v0, %s   # early return value\n",
+                            retName);
+                } else {
+                    /* Variable — e.g. end result; */
+                    int offset = getVarOffset(retName);
+                    if (offset != -1)
+                        fprintf(output,
+                                "    lw   $v0, %d($sp)   # early return %s\n",
+                                offset, retName);
+                    else
+                        fprintf(stderr,
+                                "CODEGEN ERROR: Return variable '%s' not found\n",
+                                retName);
+                }
+            }
+            /* Epilogue — mirror of genFuncDef's epilogue */
+            fprintf(output, "    lw   $ra, %d($sp)\n", currentFrameSize - 4);
+            fprintf(output, "    addi $sp, $sp, %d\n", currentFrameSize);
+            fprintf(output, "    jr   $ra\n");
+            break;
+        }
+
         /* ── NEW: while loop ──
          * Lstart:
          *     <evaluate condition into $tN>
@@ -430,6 +580,40 @@ void genStmt(ASTNode* node) {
          *     <body>
          *     j Lstart
          * Lend:                                                        */
+        /* ── if / if-else / else-if ──
+         *     <evaluate condition into $tN>
+         *     beqz $tN, Lelse<id>   (or Lend<id> if no else)
+         *     <then body>
+         *     j Lend<id>            (only if else exists)
+         * Lelse<id>:
+         *     <else body>
+         * Lend<id>:                                                    */
+        case NODE_IF: {
+            int id = loopLabelCount++;
+            genExpr(node->data.if_stmt.condition);
+            int condReg = tempReg - 1;
+
+            if (node->data.if_stmt.else_stmt) {
+                fprintf(output, "    beqz $t%d, Lelse%d\n", condReg, id);
+                tempReg = 0;
+                if (node->data.if_stmt.then_stmt)
+                    genStmt(node->data.if_stmt.then_stmt);
+                tempReg = 0;
+                fprintf(output, "    j Lend%d\n", id);
+                fprintf(output, "Lelse%d:\n", id);
+                genStmt(node->data.if_stmt.else_stmt);
+                tempReg = 0;
+            } else {
+                fprintf(output, "    beqz $t%d, Lend%d\n", condReg, id);
+                tempReg = 0;
+                if (node->data.if_stmt.then_stmt)
+                    genStmt(node->data.if_stmt.then_stmt);
+                tempReg = 0;
+            }
+            fprintf(output, "Lend%d:\n", id);
+            break;
+        }
+
         case NODE_WHILE: {
             int id = loopLabelCount++;
             fprintf(output, "Lstart%d:\n", id);
@@ -513,13 +697,20 @@ void generateMIPS(ASTNode* root, const char* filename) {
     /* ── UPDATED: handle NODE_PROGRAM root ── */
     if (root && root->type == NODE_PROGRAM) {
 
+        /* 0. Pre-scan globals so functions can resolve them via $s7 */
+        globalVarCount  = 0;
+        globalNextOffset = 0;
+        if (root->data.program.globals)
+            scanGlobals(root->data.program.globals);
+
         /* 1. Emit all function definitions first (before main) */
         genFuncList(root->data.program.funcs);
 
         /* 2. Emit the Program_Start block as 'main' */
         fprintf(output, "\nmain:\n");
         fprintf(output, "    # Allocate global stack frame\n");
-        fprintf(output, "    addi $sp, $sp, -400\n\n");
+        fprintf(output, "    addi $sp, $sp, -400\n");
+        fprintf(output, "    move $s7, $sp   # global frame pointer\n\n");
 
         /* Reset symbol table for Program_Start's local variables */
         initSymTab();

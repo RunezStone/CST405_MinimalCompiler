@@ -1,0 +1,69 @@
+struct stats{
+    int health;
+    health = 10;
+    float dmgModifier;
+}
+
+int x;
+int y;
+int result;
+stats playerStats;
+int playhealth;
+
+
+func add(int a, int b)
+    int x;
+    int result;
+    x = 0;
+    result = a + b;
+
+    while (x = 0; x < 10; x = x + 1)
+    
+        print(result);
+        result = result + x;
+    continue;
+
+    while (x > 0)
+    
+        x = x - 1;
+        print(x);
+    continue;
+
+    end result;
+
+func attackPlayer(int damage)
+
+    playhealth = playhealth - damage;
+    if(playhealth <= 0)
+    {
+        end 1;
+    }
+    else
+    {
+        end 0;
+    }
+    
+
+    end 0;
+
+Program_Start()
+    x = 5;
+    y = 10;
+    result = 0;
+    playhealth = playerStats is health;
+    print(playhealth);
+    result = attackPlayer(x);
+
+    if(result == 0)
+    {
+        y = 202;
+        print(y);
+    }
+    else
+    {
+        y = 101;
+        print(y);
+    }
+    print(playhealth);
+    print(result);
+end null;

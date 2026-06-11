@@ -96,6 +96,16 @@ int yycolumn = 1;
     return IS;
 }
 
+"if"            {
+    if (displayTokens) printf("  TOKEN: IF keyword\n");
+    return IF;
+}
+
+"else"          {
+    if (displayTokens) printf("  TOKEN: ELSE keyword\n");
+    return ELSE;
+}
+
 [a-zA-Z_][a-zA-Z0-9_]* {
     if (displayTokens) printf("  TOKEN: ID '%s'\n", yytext);
     yylval.str = strdup(yytext);

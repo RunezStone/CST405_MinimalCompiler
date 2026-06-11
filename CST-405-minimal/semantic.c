@@ -527,6 +527,33 @@ static void checkStmt(ASTNode* node) {
             checkExpr(node);
             break;
 
+        case NODE_END_CLAUSE: {
+            /* Early return inside a block (e.g. inside an if branch).
+             * Numeric literals ("0", "1", ...) are always valid.
+             * NULL means "end null;" (void return) — also always valid.
+             * A non-numeric name must be declared in the current scope. */
+            char* retVal = node->data.name;
+            if (retVal == NULL) {
+                printf("  ✓ Early return (void)\n");
+            } else if (retVal[0] >= '0' && retVal[0] <= '9') {
+                printf("  ✓ Early return (literal %s)\n", retVal);
+            } else {
+                if (!isVarDeclaredInScope(retVal)) {
+                    fprintf(stderr,
+                        "\n╔════════════════════════════════════════════════════════════╗\n"
+                        "║ SEMANTIC ERROR - Unknown Return Variable                   ║\n"
+                        "╚════════════════════════════════════════════════════════════╝\n"
+                        "  ❌ 'end %s;' — '%s' is not declared in this scope\n"
+                        "  💡 Declare 'int %s;' or use a literal like 'end 0;'\n\n",
+                        retVal, retVal, retVal);
+                    semInfo.errorCount++;
+                } else {
+                    printf("  ✓ Early return (variable '%s')\n", retVal);
+                }
+            }
+            break;
+        }
+
         case NODE_STMT_LIST:
             checkStmtList(node);
             break;
@@ -636,7 +663,11 @@ static void checkFuncDef(ASTNode* node) {
     /* Validate return variable */
     char* retVar = getReturnVar(node);
     if (retVar != NULL) {
-        if (!isVarDeclaredInScope(retVar)) {
+        /* Numeric literal returns (end 0; end 1;) are always valid */
+        if (retVar[0] >= '0' && retVar[0] <= '9') {
+            printf("  ✓ Return value '%s' (literal) in '%s'\n",
+                   retVar, node->data.func_def.name);
+        } else if (!isVarDeclaredInScope(retVar)) {
             fprintf(stderr,
                 "\n╔════════════════════════════════════════════════════════════╗\n"
                 "║ SEMANTIC ERROR - Unknown Return Variable                   ║\n"

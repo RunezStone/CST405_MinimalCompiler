@@ -45,6 +45,7 @@ ASTNode* root = NULL;          /* Root of the Abstract Syntax Tree */
 %token WHILE CONTINUE       /* Loop keywords */
 %token STRUCT               /* Struct keyword: struct Name { ... }   */
 %token IS                   /* Field-access keyword: var is field    */
+%token IF ELSE              /* Conditional keywords */
 %token <num> RELOP          /* Relational operator: carries op code
                                '<' '>' 'l'(<=) 'g'(>=) 'e'(==) 'n'(!=) */
 
@@ -56,6 +57,7 @@ ASTNode* root = NULL;          /* Root of the Abstract Syntax Tree */
 %type <node> end_clause
 %type <node> program_start
 %type <node> stmt_list stmt
+%type <node> if_stmt
 %type <node> decl assign print_stmt
 %type <node> while_stmt assign_init condition
 %type <node> id_list
@@ -64,6 +66,8 @@ ASTNode* root = NULL;          /* Root of the Abstract Syntax Tree */
 %type <node> struct_def field_body field_item
 
 /* OPERATOR PRECEDENCE */
+%nonassoc LOWER_THAN_ELSE
+%nonassoc ELSE
 %left '+' '-'
 %left '*' '/'
 %left IS
@@ -213,6 +217,12 @@ end_clause:
         $$ = createEndClause($2);
         free($2);
     }
+    | END NUM ';' {
+        /* Return an integer literal — e.g. end 1; end 0; */
+        char buf[32];
+        snprintf(buf, sizeof(buf), "%d", $2);
+        $$ = createEndClause(buf);
+    }
     | END NULLTOK error {
         fprintf(stderr, "\n❌ Syntax Error at line %d:\n", yylineno);
         fprintf(stderr, "   Missing semicolon after 'end null'\n");
@@ -287,6 +297,8 @@ stmt:
     | assign        /* Assignment:            x = expr;        */
     | print_stmt    /* Print statement:       print(expr);     */
     | while_stmt    /* While loop:            while (...) ... continue; */
+    | if_stmt       /* If statement:          if (...) { ... } */
+    | end_clause    /* Early return:          end x; / end 0; / end null; */
     ;
 
 /* ================================================================
@@ -614,6 +626,47 @@ print_stmt:
         fprintf(stderr, "\n❌ Syntax Error at line %d:\n", yylineno);
         fprintf(stderr, "   Missing opening parenthesis in print statement\n");
         fprintf(stderr, "   💡 Suggestion: Use 'print(<expression>);'\n\n");
+        $$ = NULL;
+        yyerrok;
+    }
+    ;
+
+/* ================================================================
+ * IF STATEMENT
+ *   if (condition) { stmts }
+ *   if (condition) { stmts } else { stmts }
+ *   if (condition) { stmts } else if_stmt   (else-if chain)
+ * ================================================================ */
+
+if_stmt:
+    IF '(' condition ')' '{' stmt_list '}' %prec LOWER_THAN_ELSE {
+        $$ = createIf($3, $6, NULL);
+    }
+    | IF '(' condition ')' '{' '}' %prec LOWER_THAN_ELSE {
+        $$ = createIf($3, NULL, NULL);
+    }
+    | IF '(' condition ')' '{' stmt_list '}' ELSE '{' stmt_list '}' {
+        $$ = createIf($3, $6, $10);
+    }
+    | IF '(' condition ')' '{' '}' ELSE '{' stmt_list '}' {
+        $$ = createIf($3, NULL, $9);
+    }
+    | IF '(' condition ')' '{' stmt_list '}' ELSE '{' '}' {
+        $$ = createIf($3, $6, NULL);
+    }
+    | IF '(' condition ')' '{' '}' ELSE '{' '}' {
+        $$ = createIf($3, NULL, NULL);
+    }
+    | IF '(' condition ')' '{' stmt_list '}' ELSE if_stmt {
+        $$ = createIf($3, $6, $9);
+    }
+    | IF '(' condition ')' '{' '}' ELSE if_stmt {
+        $$ = createIf($3, NULL, $8);
+    }
+    | IF error {
+        fprintf(stderr, "\n❌ Syntax Error at line %d:\n", yylineno);
+        fprintf(stderr, "   Malformed if statement\n");
+        fprintf(stderr, "   💡 Suggestion: Use 'if (<condition>) { ... }'\n\n");
         $$ = NULL;
         yyerrok;
     }

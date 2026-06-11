@@ -1,0 +1,142 @@
+====================================================
+  MINIMAL COMPILER — GRAMMAR RULES (parser.y)
+====================================================
+
+-------------------------------
+PROGRAM STRUCTURE
+-------------------------------
+program ::= global_list func_decl_list program_start
+          | global_list program_start
+
+-------------------------------
+GLOBAL DECLARATIONS
+-------------------------------
+global_list ::= (empty)
+              | global_list decl
+
+-------------------------------
+FUNCTION DECLARATIONS
+-------------------------------
+func_decl_list ::= func_decl
+                 | func_decl_list func_decl
+
+func_decl ::= func ID ( param_list ) stmt_list end_clause
+            | func ID (             ) stmt_list end_clause
+            | func ID ( param_list ) end_clause
+            | func ID (             ) end_clause
+
+-------------------------------
+PARAMETERS
+-------------------------------
+param_list ::= param_item
+             | param_list , param_item
+
+param_item ::= int  ID
+             | float ID
+
+-------------------------------
+END CLAUSE
+-------------------------------
+end_clause ::= end null ;
+             | end ID ;
+
+-------------------------------
+PROGRAM_START
+-------------------------------
+program_start ::= Program_Start ( ) stmt_list end_clause
+                | Program_Start ( ) end_clause
+
+-------------------------------
+STATEMENTS
+-------------------------------
+stmt_list ::= stmt
+            | stmt_list stmt
+
+stmt ::= decl
+       | assign
+       | print_stmt
+       | while_stmt
+
+-------------------------------
+DECLARATIONS
+-------------------------------
+decl ::= int   id_list ;
+       | float id_list ;
+       | int   ID [ NUM ] ;
+       | float ID [ NUM ] ;
+       | struct_def
+       | ID    id_list ;          (struct instance: StatName varName;)
+
+id_list ::= ID
+          | id_list , ID
+
+-------------------------------
+ASSIGNMENT
+-------------------------------
+assign ::= ID = expr ;
+         | ID = func_call ;
+         | ID [ expr ] = expr ;             (array element)
+         | expr is ID = expr ;              (struct field)
+
+-------------------------------
+FUNCTION CALL
+-------------------------------
+func_call ::= ID ( arg_list )
+            | ID (          )
+
+arg_list ::= expr
+           | arg_list , expr
+
+-------------------------------
+EXPRESSIONS
+-------------------------------
+expr ::= NUM                   (integer literal)
+       | FNUM                  (float literal)
+       | ID                    (variable)
+       | expr + expr
+       | expr - expr
+       | expr * expr
+       | expr / expr
+       | - expr                (unary negation)
+       | ( expr )
+       | ID [ expr ]           (array access)
+       | expr is ID            (struct field access)
+
+Operator Precedence (low → high):
+  1. + -
+  2. * /
+  3. is
+  4. unary -  (right-associative)
+
+-------------------------------
+STRUCT DEFINITION
+-------------------------------
+struct_def ::= struct ID { field_body }
+
+field_body ::= field_item
+             | field_body field_item
+
+field_item ::= int   ID ;
+             | float ID ;
+             | int   ID [ NUM ] ;
+             | float ID [ NUM ] ;
+             | ID = expr ;          (default value)
+
+-------------------------------
+PRINT
+-------------------------------
+print_stmt ::= print ( expr ) ;
+
+-------------------------------
+WHILE LOOP
+-------------------------------
+while_stmt ::= while ( condition ) stmt_list continue ;
+             | while ( assign_init ; condition ; assign_init ) stmt_list continue ;
+
+assign_init ::= ID = expr           (no trailing semicolon)
+
+condition ::= expr RELOP expr
+
+RELOP: <  >  <=  >=  ==  !=
+
+====================================================

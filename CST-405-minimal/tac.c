@@ -603,10 +603,59 @@ case NODE_ASSIGN: {
             break;
         }
 
+        /* ── early return (end inside if body) ── */
+        case NODE_END_CLAUSE:
+            /* data.name == NULL → end null (void return)
+             * data.name != NULL → end x / end 1 (return value or literal) */
+            appendTAC(createTAC(TAC_RETURN, NULL, NULL,
+                                node->data.name));  /* NULL is fine for void */
+            break;
+
         /* ── NEW: standalone function call statement ── */
         case NODE_FUNC_CALL:
             generateTACFuncCall(node);   /* result temp is discarded */
             break;
+
+        /* ── if statement ──
+         * if (condition) { then }
+         *   t = <condition>
+         *   IF_FALSE t GOTO Lelse   (or Lend if no else)
+         *   <then body>
+         *   GOTO Lend               (only if else exists)
+         * Lelse:
+         *   <else body>             (may be another if_stmt for else-if)
+         * Lend:                                                        */
+        case NODE_IF: {
+            char* condTemp = generateTACExpr(node->data.if_stmt.condition);
+
+            if (node->data.if_stmt.else_stmt) {
+                char* elseLabel = newLabel();
+                char* endLabel  = newLabel();
+
+                appendTAC(createTAC(TAC_IF_FALSE, condTemp, NULL, elseLabel));
+                if (node->data.if_stmt.then_stmt)
+                    generateTAC(node->data.if_stmt.then_stmt);
+                appendTAC(createTAC(TAC_GOTO, NULL, NULL, endLabel));
+                appendTAC(createTAC(TAC_LABEL, NULL, NULL, elseLabel));
+                generateTAC(node->data.if_stmt.else_stmt);
+                appendTAC(createTAC(TAC_LABEL, NULL, NULL, endLabel));
+
+                free(elseLabel);
+                free(endLabel);
+            } else {
+                char* endLabel = newLabel();
+
+                appendTAC(createTAC(TAC_IF_FALSE, condTemp, NULL, endLabel));
+                if (node->data.if_stmt.then_stmt)
+                    generateTAC(node->data.if_stmt.then_stmt);
+                appendTAC(createTAC(TAC_LABEL, NULL, NULL, endLabel));
+
+                free(endLabel);
+            }
+
+            free(condTemp);
+            break;
+        }
 
         /* ── NEW: while loop ──
          * LABEL Lstart
