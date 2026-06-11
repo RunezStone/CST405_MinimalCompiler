@@ -13,8 +13,89 @@ static int tempReg = 0;
 /* Counter for generating unique loop labels (Lstart0/Lend0, Lstart1/Lend1, ...) */
 static int loopLabelCount = 0;
 
+/* ── Break-label stack ──────────────────────────────────────────────────────
+ * Tracks the label ID of the nearest enclosing switch/loop so that
+ * NODE_BREAK can emit "j Lend<id>" to exit the construct.               */
+#define MAX_BREAK_DEPTH_CG 64
+static int breakIdStack[MAX_BREAK_DEPTH_CG];
+static int breakIdTop = 0;
+
 /* Counter for generating unique string literal labels (__str0, __str1, ...) */
 static int strLabelCount = 0;
+
+/* ── String literal table ──────────────────────────────────────────────────
+ * All string literals are collected via prescanStrings() before any code is
+ * emitted, then written into the .data section at the top of the file.
+ * genExpr(NODE_STRING) simply emits "la $tN, __strK" using the pre-assigned
+ * index — no inline .data/.text switching.                                 */
+#define MAX_STRING_LITERALS 64
+static char* strTable[MAX_STRING_LITERALS];
+static int   strTableCount = 0;
+
+/* Walk the AST and register every NODE_STRING, assigning it an index.
+ * Must be called before any code-generation pass.                          */
+static void prescanStrings(ASTNode* node) {
+    if (!node) return;
+    switch (node->type) {
+        case NODE_STRING:
+            if (strTableCount < MAX_STRING_LITERALS)
+                strTable[strTableCount++] = node->data.name;
+            break;
+        /* Recurse into every node that can contain sub-expressions/stmts */
+        case NODE_STMT_LIST:
+            prescanStrings(node->data.stmtlist.stmt);
+            prescanStrings(node->data.stmtlist.next);
+            break;
+        case NODE_PRINT:
+            prescanStrings(node->data.expr);
+            break;
+        case NODE_ASSIGN:
+            prescanStrings(node->data.assign.value);
+            break;
+        case NODE_BINOP:
+            prescanStrings(node->data.binop.left);
+            prescanStrings(node->data.binop.right);
+            break;
+        case NODE_IF:
+            prescanStrings(node->data.if_stmt.condition);
+            prescanStrings(node->data.if_stmt.then_stmt);
+            prescanStrings(node->data.if_stmt.else_stmt);
+            break;
+        case NODE_WHILE:
+            prescanStrings(node->data.while_stmt.condition);
+            prescanStrings(node->data.while_stmt.body);
+            break;
+        case NODE_FOR_WHILE:
+            prescanStrings(node->data.for_while.condition);
+            prescanStrings(node->data.for_while.body);
+            break;
+        case NODE_SWITCH: {
+            prescanStrings(node->data.switch_stmt.expr);
+            ASTNode* c = node->data.switch_stmt.cases;
+            while (c) { prescanStrings(c->data.case_clause.body); c = c->data.case_clause.next; }
+            break;
+        }
+        case NODE_FUNC_DEF:
+            prescanStrings(node->data.func_def.body);
+            break;
+        case NODE_FUNC_CALL: {
+            ASTNode* a = node->data.func_call.args;
+            while (a) {
+                if (a->type == NODE_ARG_LIST) { prescanStrings(a->data.arg_list.expr); a = a->data.arg_list.next; }
+                else { prescanStrings(a); break; }
+            }
+            break;
+        }
+        case NODE_PROGRAM:
+            prescanStrings(node->data.program.globals);
+            prescanStrings(node->data.program.funcs);
+            if (node->data.program.start)
+                prescanStrings(node->data.program.start->data.block.stmt_list);
+            break;
+        default:
+            break;
+    }
+}
 
 /* Frame size of the current function — set by genFuncDef so that
  * early-return (end) statements inside if bodies can emit the epilogue. */
@@ -124,11 +205,9 @@ static void genExpr(ASTNode* node) {
         }
 
         case NODE_STRING: {
-            /* Emit the string into .data, then load its address */
+            /* All strings were pre-emitted into .data at the top of the file.
+             * Just load the pre-assigned label address. */
             int idx = strLabelCount++;
-            fprintf(output, ".data\n");
-            fprintf(output, "__str%d: .asciiz \"%s\"\n", idx, node->data.name);
-            fprintf(output, ".text\n");
             int reg = getNextTemp();
             fprintf(output, "    la   $t%d, __str%d\n", reg, idx);
             break;
@@ -547,10 +626,23 @@ void genStmt(ASTNode* node) {
                 fprintf(output, "    li   $v0, 4\n");
                 fprintf(output, "    syscall\n");
             } else {
-                fprintf(output, "    # Print integer\n");
-                fprintf(output, "    move $a0, $t%d\n", tempReg - 1);
-                fprintf(output, "    li   $v0, 1\n");
-                fprintf(output, "    syscall\n");
+                /* Check if the printed value is a char variable → syscall 11 */
+                int isChar = 0;
+                if (node->data.expr && node->data.expr->type == NODE_VAR) {
+                    char* vtype = getVarType(node->data.expr->data.name);
+                    if (vtype && strcmp(vtype, "char") == 0) isChar = 1;
+                }
+                if (isChar) {
+                    fprintf(output, "    # Print char\n");
+                    fprintf(output, "    move $a0, $t%d\n", tempReg - 1);
+                    fprintf(output, "    li   $v0, 11\n");
+                    fprintf(output, "    syscall\n");
+                } else {
+                    fprintf(output, "    # Print integer\n");
+                    fprintf(output, "    move $a0, $t%d\n", tempReg - 1);
+                    fprintf(output, "    li   $v0, 1\n");
+                    fprintf(output, "    syscall\n");
+                }
             }
             fprintf(output, "    # Print newline\n");
             fprintf(output, "    li   $v0, 11\n");
@@ -641,22 +733,15 @@ void genStmt(ASTNode* node) {
             genExpr(node->data.while_stmt.condition);
             fprintf(output, "    beqz $t%d, Lend%d\n", tempReg - 1, id);
             tempReg = 0;
+            if (breakIdTop < MAX_BREAK_DEPTH_CG) breakIdStack[breakIdTop++] = id;
             genStmt(node->data.while_stmt.body);
+            if (breakIdTop > 0) breakIdTop--;
             tempReg = 0;
             fprintf(output, "    j Lstart%d\n", id);
             fprintf(output, "Lend%d:\n", id);
             break;
         }
 
-        /* ── NEW: C-style while loop ──
-         *     <init>
-         * Lstart:
-         *     <evaluate condition into $tN>
-         *     beqz $tN, Lend
-         *     <body>
-         *     <update>
-         *     j Lstart
-         * Lend:                                                        */
         case NODE_FOR_WHILE: {
             genStmt(node->data.for_while.init);
             tempReg = 0;
@@ -665,7 +750,9 @@ void genStmt(ASTNode* node) {
             genExpr(node->data.for_while.condition);
             fprintf(output, "    beqz $t%d, Lend%d\n", tempReg - 1, id);
             tempReg = 0;
+            if (breakIdTop < MAX_BREAK_DEPTH_CG) breakIdStack[breakIdTop++] = id;
             genStmt(node->data.for_while.body);
+            if (breakIdTop > 0) breakIdTop--;
             tempReg = 0;
             genStmt(node->data.for_while.update);
             tempReg = 0;
@@ -673,6 +760,75 @@ void genStmt(ASTNode* node) {
             fprintf(output, "Lend%d:\n", id);
             break;
         }
+
+        /* ── switch statement ─────────────────────────────────────────────
+         * Dispatch (linear scan):
+         *   evaluate expr → $t<switchReg>
+         *   for each non-default case:  li $tN, val; beq $tN, $t<sw>, LcaseN
+         *   j Ldefault  (or Lend)
+         * Bodies:
+         *   Lcase0: [body]; Lcase1: [body; break → j Lend]; ...
+         *   Ldefault: [body]; Lend:
+         * Fall-through: a case with NULL body has no j before the next label. */
+        case NODE_SWITCH: {
+            int id = loopLabelCount++;
+
+            /* Evaluate controlling expression */
+            tempReg = 0;
+            genExpr(node->data.switch_stmt.expr);
+            int switchReg = tempReg - 1;
+
+            /* Dispatch table */
+            ASTNode* defCase = NULL;
+            int caseIdx = 0;
+            for (ASTNode* c = node->data.switch_stmt.cases; c;
+                 c = c->data.case_clause.next) {
+                if (c->data.case_clause.isDefault) { defCase = c; continue; }
+                fprintf(output, "    li $t%d, %d\n", tempReg, c->data.case_clause.value);
+                fprintf(output, "    beq $t%d, $t%d, Lcase%d_%d\n",
+                        switchReg, tempReg, id, caseIdx);
+                tempReg++;
+                caseIdx++;
+            }
+            if (defCase)
+                fprintf(output, "    j Ldefault%d\n", id);
+            else
+                fprintf(output, "    j Lend%d\n", id);
+
+            /* Bodies */
+            if (breakIdTop < MAX_BREAK_DEPTH_CG) breakIdStack[breakIdTop++] = id;
+            caseIdx = 0;
+            for (ASTNode* c = node->data.switch_stmt.cases; c;
+                 c = c->data.case_clause.next) {
+                if (c->data.case_clause.isDefault) continue;
+                fprintf(output, "Lcase%d_%d:\n", id, caseIdx);
+                if (c->data.case_clause.body) {
+                    tempReg = 0;
+                    genStmt(c->data.case_clause.body);
+                    tempReg = 0;
+                }
+                caseIdx++;
+            }
+
+            /* Default */
+            fprintf(output, "Ldefault%d:\n", id);
+            if (defCase && defCase->data.case_clause.body) {
+                tempReg = 0;
+                genStmt(defCase->data.case_clause.body);
+                tempReg = 0;
+            }
+
+            if (breakIdTop > 0) breakIdTop--;
+            fprintf(output, "Lend%d:\n", id);
+            tempReg = 0;
+            break;
+        }
+
+        /* ── break statement ────────────────────────────────────────── */
+        case NODE_BREAK:
+            if (breakIdTop > 0)
+                fprintf(output, "    j Lend%d\n", breakIdStack[breakIdTop - 1]);
+            break;
 
         case NODE_STMT_LIST:
             genStmt(node->data.stmtlist.stmt);
@@ -711,7 +867,19 @@ void generateMIPS(ASTNode* root, const char* filename) {
     /* ── MIPS file header ── */
     fprintf(output, "# Generated MIPS Assembly\n");
     fprintf(output, "# -------------------------------------\n\n");
-    fprintf(output, ".data\n\n");
+
+    /* Pre-scan the entire AST for string literals and emit them in .data */
+    strTableCount = 0;
+    strLabelCount = 0;
+    prescanStrings(root);
+    fprintf(output, ".data\n");
+    for (int si = 0; si < strTableCount; si++)
+        fprintf(output, "__str%d: .asciiz \"%s\"\n", si, strTable[si]);
+    fprintf(output, "\n");
+
+    /* Reset strLabelCount — genExpr(NODE_STRING) increments it as it goes */
+    strLabelCount = 0;
+
     fprintf(output, ".text\n");
     fprintf(output, ".globl main\n");
 

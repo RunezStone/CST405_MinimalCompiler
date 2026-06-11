@@ -408,6 +408,55 @@ ASTNode* createStructAccess(ASTNode* base, char* field) {
  * printAST  — pretty-print the entire tree (for debugging)
  * ───────────────────────────────────────────────────────────────────────── */
 
+/* ─── Switch constructors ─────────────────────────────────────────────── */
+
+ASTNode* createCase(int value, ASTNode* body) {
+    ASTNode* node = calloc(1, sizeof(ASTNode));
+    node->type                       = NODE_CASE;
+    node->data.case_clause.isDefault = 0;
+    node->data.case_clause.value     = value;
+    node->data.case_clause.body      = body;
+    node->data.case_clause.next      = NULL;
+    return node;
+}
+
+ASTNode* createDefault(ASTNode* body) {
+    ASTNode* node = calloc(1, sizeof(ASTNode));
+    node->type                       = NODE_CASE;
+    node->data.case_clause.isDefault = 1;
+    node->data.case_clause.value     = 0;
+    node->data.case_clause.body      = body;
+    node->data.case_clause.next      = NULL;
+    return node;
+}
+
+ASTNode* appendCaseList(ASTNode* list, ASTNode* newCase) {
+    if (!list) return newCase;
+    ASTNode* cur = list;
+    while (cur->data.case_clause.next)
+        cur = cur->data.case_clause.next;
+    cur->data.case_clause.next = newCase;
+    return list;
+}
+
+ASTNode* createSwitch(ASTNode* expr, ASTNode* cases, ASTNode* defaultCase) {
+    ASTNode* node = calloc(1, sizeof(ASTNode));
+    node->type                  = NODE_SWITCH;
+    node->data.switch_stmt.expr = expr;
+    /* Append default to end of case list */
+    if (defaultCase)
+        node->data.switch_stmt.cases = appendCaseList(cases, defaultCase);
+    else
+        node->data.switch_stmt.cases = cases;
+    return node;
+}
+
+ASTNode* createBreak(void) {
+    ASTNode* node = calloc(1, sizeof(ASTNode));
+    node->type = NODE_BREAK;
+    return node;
+}
+
 /* Print 'level' levels of indentation */
 static void indent(int level) {
     for (int i = 0; i < level; i++) printf("  ");
@@ -611,6 +660,34 @@ void printAST(ASTNode* node, int level) {
             indent(level);
             printf("END_CLAUSE: %s\n",
                    node->data.name ? node->data.name : "null");
+            break;
+
+        case NODE_SWITCH: {
+            indent(level);
+            printf("SWITCH\n");
+            indent(level + 1);
+            printf("EXPR:\n");
+            printAST(node->data.switch_stmt.expr, level + 2);
+            for (ASTNode* c = node->data.switch_stmt.cases; c;
+                 c = c->data.case_clause.next) {
+                printAST(c, level + 1);
+            }
+            break;
+        }
+
+        case NODE_CASE:
+            indent(level);
+            if (node->data.case_clause.isDefault)
+                printf("DEFAULT:\n");
+            else
+                printf("CASE: %d\n", node->data.case_clause.value);
+            if (node->data.case_clause.body)
+                printAST(node->data.case_clause.body, level + 2);
+            break;
+
+        case NODE_BREAK:
+            indent(level);
+            printf("BREAK\n");
             break;
 
         default:

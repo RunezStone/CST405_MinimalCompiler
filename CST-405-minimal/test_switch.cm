@@ -1,0 +1,72 @@
+struct stats{
+    int health;
+    health = 10;
+    float dmgModifier;
+}
+
+int x;
+int y;
+int result;
+
+
+func add(int a, int b)
+    int x;
+    int result;
+    x = 0;
+    result = a + b;
+
+    while (x = 0; x < 10; x = x + 1)
+        print(result);
+        result = result + x;
+    continue;
+
+    while (x > 0)
+    
+        x = x - 1;
+        print(x);
+    continue;
+
+    end result;
+
+
+Program_Start()
+
+    stats playerStats;
+    int playhealth;
+
+    x = 5;
+    y = 10;
+    result = add(x, y);
+    result = 0;
+    playhealth = playerStats is health;
+    print(playhealth);
+    print(result);
+
+    int score = 100;
+    char grade;
+
+    print("Hello");
+
+    switch (score / 10):
+        case 10:
+        case 9:
+            grade = 'A';
+            break;
+        case 8:
+            grade = 'B';
+            break;
+        case 7:
+            grade = 'C';
+            break;
+        case 6:
+            grade = 'D';
+            break;
+        default:
+            grade = 'F';
+            break;
+    close;
+
+    print(grade);
+end null;
+
+

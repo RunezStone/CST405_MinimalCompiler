@@ -285,6 +285,22 @@ void allocateRegistersForTAC() {
 /* Counter for generated labels (L0, L1, ...) — used by while-loop TAC */
 static int labelCount = 0;
 
+/* ── Break-label stack ──────────────────────────────────────────────────
+ * Tracks the end-label of the nearest enclosing switch or loop so that
+ * NODE_BREAK can emit a GOTO to exit it.                              */
+#define MAX_BREAK_DEPTH 64
+static char* breakLabelStack[MAX_BREAK_DEPTH];
+static int   breakLabelTop = 0;
+static void  pushBreakLabel(char* lbl) {
+    if (breakLabelTop < MAX_BREAK_DEPTH) breakLabelStack[breakLabelTop++] = lbl;
+}
+static char* peekBreakLabel(void) {
+    return (breakLabelTop > 0) ? breakLabelStack[breakLabelTop - 1] : NULL;
+}
+static void popBreakLabel(void) {
+    if (breakLabelTop > 0) breakLabelTop--;
+}
+
 void initTAC() {
     tacList.head      = NULL;
     tacList.tail      = NULL;
@@ -292,6 +308,7 @@ void initTAC() {
     optimizedList.head = NULL;
     optimizedList.tail = NULL;
     labelCount         = 0;
+    breakLabelTop      = 0;
 }
 
 char* newTemp() {
@@ -678,7 +695,9 @@ case NODE_ASSIGN: {
             appendTAC(createTAC(TAC_LABEL, NULL, NULL, startLabel));
             char* condTemp = generateTACExpr(node->data.while_stmt.condition);
             appendTAC(createTAC(TAC_IF_FALSE, condTemp, NULL, endLabel));
+            pushBreakLabel(endLabel);
             generateTAC(node->data.while_stmt.body);
+            popBreakLabel();
             appendTAC(createTAC(TAC_GOTO, NULL, NULL, startLabel));
             appendTAC(createTAC(TAC_LABEL, NULL, NULL, endLabel));
 
@@ -688,15 +707,6 @@ case NODE_ASSIGN: {
             break;
         }
 
-        /* ── NEW: C-style while loop ──
-         * <init>
-         * LABEL Lstart
-         *   t = <condition>
-         *   IF_FALSE t GOTO Lend
-         *   <body>
-         *   <update>
-         *   GOTO Lstart
-         * LABEL Lend                                                  */
         case NODE_FOR_WHILE: {
             generateTAC(node->data.for_while.init);
 
@@ -706,7 +716,9 @@ case NODE_ASSIGN: {
             appendTAC(createTAC(TAC_LABEL, NULL, NULL, startLabel));
             char* condTemp = generateTACExpr(node->data.for_while.condition);
             appendTAC(createTAC(TAC_IF_FALSE, condTemp, NULL, endLabel));
+            pushBreakLabel(endLabel);
             generateTAC(node->data.for_while.body);
+            popBreakLabel();
             generateTAC(node->data.for_while.update);
             appendTAC(createTAC(TAC_GOTO, NULL, NULL, startLabel));
             appendTAC(createTAC(TAC_LABEL, NULL, NULL, endLabel));
@@ -714,6 +726,105 @@ case NODE_ASSIGN: {
             free(startLabel);
             free(endLabel);
             free(condTemp);
+            break;
+        }
+
+        case NODE_BREAK: {
+            char* target = peekBreakLabel();
+            if (target)
+                appendTAC(createTAC(TAC_GOTO, NULL, NULL, target));
+            break;
+        }
+
+        /* ── Switch statement ──────────────────────────────────────────
+         * Dispatch table (linear scan):
+         *   DECL int __swN
+         *   __swN = <expr>
+         *   for each non-default case i:
+         *     tX = __swN == caseVal
+         *     IF_FALSE tX GOTO LfailI
+         *     GOTO LbodyI
+         *     LABEL LfailI
+         *   GOTO Ldefault  (or Lend if no default)
+         *   LABEL Lbody0, [body0], LABEL Lbody1, [body1], ...
+         *   LABEL Ldefault, [default body]
+         *   LABEL Lend
+         * break; inside a body emits GOTO Lend via the break stack.   */
+        case NODE_SWITCH: {
+            /* 1. Named variable for the controlling expression */
+            char switchVar[32];
+            sprintf(switchVar, "__sw%d", labelCount);
+            appendTAC(createTAC(TAC_DECL, "int", NULL, switchVar));
+            char* exprVal = generateTACExpr(node->data.switch_stmt.expr);
+            appendTAC(createTAC(TAC_ASSIGN, exprVal, NULL, switchVar));
+            free(exprVal);
+
+            /* 2. Count non-default cases and allocate labels */
+            int nCases = 0;
+            ASTNode* defCase = NULL;
+            for (ASTNode* c = node->data.switch_stmt.cases; c;
+                 c = c->data.case_clause.next) {
+                if (c->data.case_clause.isDefault) defCase = c;
+                else nCases++;
+            }
+
+            char** bodyLabels = malloc(nCases * sizeof(char*));
+            char** failLabels = malloc(nCases * sizeof(char*));
+            for (int i = 0; i < nCases; i++) {
+                bodyLabels[i] = newLabel();
+                failLabels[i] = newLabel();
+            }
+            char* labelDefault = newLabel();
+            char* labelEnd     = newLabel();
+
+            /* 3. Dispatch table */
+            int idx = 0;
+            for (ASTNode* c = node->data.switch_stmt.cases; c;
+                 c = c->data.case_clause.next) {
+                if (c->data.case_clause.isDefault) continue;
+                char caseConst[32];
+                sprintf(caseConst, "%d", c->data.case_clause.value);
+                char* cmpTemp = newTemp();
+                appendTAC(createTAC(TAC_EQ, switchVar, caseConst, cmpTemp));
+                appendTAC(createTAC(TAC_IF_FALSE, cmpTemp, NULL, failLabels[idx]));
+                appendTAC(createTAC(TAC_GOTO, NULL, NULL, bodyLabels[idx]));
+                appendTAC(createTAC(TAC_LABEL, NULL, NULL, failLabels[idx]));
+                free(cmpTemp);
+                idx++;
+            }
+            /* After all tests: jump to default or end */
+            appendTAC(createTAC(TAC_GOTO, NULL, NULL,
+                                defCase ? labelDefault : labelEnd));
+
+            /* 4. Case bodies */
+            pushBreakLabel(labelEnd);
+            idx = 0;
+            for (ASTNode* c = node->data.switch_stmt.cases; c;
+                 c = c->data.case_clause.next) {
+                if (c->data.case_clause.isDefault) continue;
+                appendTAC(createTAC(TAC_LABEL, NULL, NULL, bodyLabels[idx]));
+                if (c->data.case_clause.body)
+                    generateTAC(c->data.case_clause.body);
+                idx++;
+            }
+
+            /* 5. Default body */
+            appendTAC(createTAC(TAC_LABEL, NULL, NULL, labelDefault));
+            if (defCase && defCase->data.case_clause.body)
+                generateTAC(defCase->data.case_clause.body);
+
+            popBreakLabel();
+            appendTAC(createTAC(TAC_LABEL, NULL, NULL, labelEnd));
+
+            /* 6. Free allocations */
+            for (int i = 0; i < nCases; i++) {
+                free(bodyLabels[i]);
+                free(failLabels[i]);
+            }
+            free(bodyLabels);
+            free(failLabels);
+            free(labelDefault);
+            free(labelEnd);
             break;
         }
 

@@ -40,13 +40,15 @@ ASTNode* root = NULL;          /* Root of the Abstract Syntax Tree */
 %token <fnum> FNUM          /* Float literal:   carries float value   */
 %token <str> ID             /* Identifier: carries string name */
 %token <str> STRING         /* String literal: carries string value */
-%token INT FLOAT PRINT      /* Type keywords */
+%token INT FLOAT PRINT CHAR /* Type keywords */
 %token FUNC PROGRAM_START   /* Function keywords */
 %token END NULLTOK          /* End-clause keywords */
 %token WHILE CONTINUE       /* Loop keywords */
 %token STRUCT               /* Struct keyword: struct Name { ... }   */
 %token IS                   /* Field-access keyword: var is field    */
 %token IF ELSE              /* Conditional keywords */
+%token SWITCH CASE DEFAULT BREAK CLOSE  /* Switch statement keywords */
+%token <num> CHAR_LIT       /* Character literal: 'A', 'z', etc.    */
 %token <num> RELOP          /* Relational operator: carries op code
                                '<' '>' 'l'(<=) 'g'(>=) 'e'(==) 'n'(!=) */
 
@@ -65,6 +67,7 @@ ASTNode* root = NULL;          /* Root of the Abstract Syntax Tree */
 %type <node> expr
 %type <node> func_call arg_list
 %type <node> struct_def field_body field_item
+%type <node> switch_stmt case_list case_arm default_case
 
 /* OPERATOR PRECEDENCE */
 %nonassoc LOWER_THAN_ELSE
@@ -192,6 +195,10 @@ param_item:
         $$ = createParam($2);
         free($2);
     }
+    | CHAR ID {
+        $$ = createParam($2);
+        free($2);
+    }
     | error ID {
         fprintf(stderr, "\n❌ Syntax Error at line %d:\n", yylineno);
         fprintf(stderr, "   Missing type in parameter declaration\n");
@@ -299,6 +306,7 @@ stmt:
     | print_stmt    /* Print statement:       print(expr);     */
     | while_stmt    /* While loop:            while (...) ... continue; */
     | if_stmt       /* If statement:          if (...) { ... } */
+    | switch_stmt   /* Switch statement:      switch (e): ... close; */
     | end_clause    /* Early return:          end x; / end 0; / end null; */
     ;
 
@@ -340,12 +348,38 @@ decl:
     | FLOAT id_list ';' {
         $$ = createMultiDeclTyped($2, "float");
     }
+    | CHAR id_list ';' {
+        $$ = createMultiDeclTyped($2, "char");
+    }
+    | INT ID '=' expr ';' {
+        /* Inline init: int score = 85; → DECL + ASSIGN */
+        ASTNode* d = createDecl("int", $2);
+        ASTNode* a = createAssign($2, $4);
+        $$ = createStmtList(d, a);
+        free($2);
+    }
+    | FLOAT ID '=' expr ';' {
+        ASTNode* d = createDecl("float", $2);
+        ASTNode* a = createAssign($2, $4);
+        $$ = createStmtList(d, a);
+        free($2);
+    }
+    | CHAR ID '=' expr ';' {
+        ASTNode* d = createDecl("char", $2);
+        ASTNode* a = createAssign($2, $4);
+        $$ = createStmtList(d, a);
+        free($2);
+    }
     | INT ID '[' NUM ']' ';' {
         $$ = createArrayDecl($2, $4);
         free($2);
     }
     | FLOAT ID '[' NUM ']' ';' {
         $$ = createArrayDecl($2, $4);
+        free($2);
+    }
+    | CHAR ID '[' NUM ']' ';' {
+        $$ = createArrayDeclTyped($2, $4, "char");
         free($2);
     }
     | struct_def {
@@ -514,6 +548,10 @@ expr:
         /* String literal */
         $$ = createString($1);
         free($1);
+    }
+    | CHAR_LIT {
+        /* Character literal: 'A' → integer ASCII value */
+        $$ = createNum($1);
     }
     | ID {
         /* Variable reference */
@@ -714,6 +752,57 @@ assign_init:
 condition:
     expr RELOP expr {
         $$ = createBinOp((char)$2, $1, $3);
+    }
+    ;
+
+/* ================================================================
+ * SWITCH STATEMENT
+ *   switch (expr):
+ *       case N:
+ *       case M: stmt_list break;
+ *       default: stmt_list break;
+ *   close;
+ * ================================================================ */
+
+switch_stmt:
+    SWITCH '(' expr ')' ':' case_list default_case CLOSE ';' {
+        $$ = createSwitch($3, $6, $7);
+    }
+    ;
+
+case_list:
+    case_arm {
+        $$ = $1;
+    }
+    | case_list case_arm {
+        $$ = appendCaseList($1, $2);
+    }
+    ;
+
+case_arm:
+    CASE NUM ':' {
+        /* Fall-through: no body, no break — execution falls to next case */
+        $$ = createCase($2, NULL);
+    }
+    | CASE NUM ':' stmt_list BREAK ';' {
+        /* Append a NODE_BREAK so the TAC emits GOTO Lend */
+        $$ = createCase($2, createStmtList($4, createBreak()));
+    }
+    | CASE CHAR_LIT ':' {
+        $$ = createCase($2, NULL);
+    }
+    | CASE CHAR_LIT ':' stmt_list BREAK ';' {
+        $$ = createCase($2, createStmtList($4, createBreak()));
+    }
+    ;
+
+default_case:
+    DEFAULT ':' BREAK ';' {
+        /* Default with no body — just break */
+        $$ = createDefault(createBreak());
+    }
+    | DEFAULT ':' stmt_list BREAK ';' {
+        $$ = createDefault(createStmtList($3, createBreak()));
     }
     ;
 

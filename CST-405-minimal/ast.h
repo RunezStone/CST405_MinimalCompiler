@@ -55,7 +55,12 @@ typedef enum {
 
     /* ── Structs ── */
     NODE_STRUCT_DEF,    /* Struct type definition      struct S { ... } */
-    NODE_STRUCT_ACCESS  /* Struct field access         e.g. p is field  */
+    NODE_STRUCT_ACCESS, /* Struct field access         e.g. p is field  */
+
+    /* ── Switch ── */
+    NODE_SWITCH,        /* switch ( expr ) : cases close ;               */
+    NODE_CASE,          /* case N: body break;  or  default: body break; */
+    NODE_BREAK          /* break;                                         */
 } NodeType;
 
 
@@ -234,6 +239,27 @@ typedef struct ASTNode {
             char*           field;  /* Field name                         */
         } struct_access;
 
+        /* NODE_SWITCH ─ switch statement
+         *   cases is a linked list of NODE_CASE nodes (non-default first,
+         *   default appended at the end by createSwitch).               */
+        struct {
+            struct ASTNode* expr;   /* Controlling expression             */
+            struct ASTNode* cases;  /* Linked list of NODE_CASE nodes     */
+        } switch_stmt;
+
+        /* NODE_CASE ─ a single case/default clause
+         *   isDefault == 0: "case value: body break;"
+         *   isDefault == 1: "default:    body break;"
+         *   next chains to the following case clause.                  */
+        struct {
+            int             isDefault;
+            int             value;      /* Case constant (int/char code)  */
+            struct ASTNode* body;       /* NULL = fall-through            */
+            struct ASTNode* next;       /* Next case in the list          */
+        } case_clause;
+
+        /* NODE_BREAK ─ uses only lineno, no extra fields */
+
     } data;
 
 } ASTNode;
@@ -296,6 +322,13 @@ ASTNode* createArrayIndex(char* name, ASTNode* index);
 /* Structs */
 ASTNode* createStructDef(char* name, ASTNode* fields);
 ASTNode* createStructAccess(ASTNode* base, char* field);
+
+/* Switch */
+ASTNode* createSwitch(ASTNode* expr, ASTNode* cases, ASTNode* defaultCase);
+ASTNode* createCase(int value, ASTNode* body);
+ASTNode* createDefault(ASTNode* body);
+ASTNode* appendCaseList(ASTNode* list, ASTNode* newCase);
+ASTNode* createBreak(void);
 
 /* Debug / display */
 void printAST(ASTNode* node, int level);

@@ -106,6 +106,45 @@ int yycolumn = 1;
     return ELSE;
 }
 
+"switch"        {
+    if (displayTokens) printf("  TOKEN: SWITCH keyword\n");
+    return SWITCH;
+}
+
+"case"          {
+    if (displayTokens) printf("  TOKEN: CASE keyword\n");
+    return CASE;
+}
+
+"default"       {
+    if (displayTokens) printf("  TOKEN: DEFAULT keyword\n");
+    return DEFAULT;
+}
+
+"break"         {
+    if (displayTokens) printf("  TOKEN: BREAK keyword\n");
+    return BREAK;
+}
+
+"close"         {
+    if (displayTokens) printf("  TOKEN: CLOSE keyword\n");
+    return CLOSE;
+}
+
+"char"          {
+    if (displayTokens) printf("  TOKEN: CHAR keyword\n");
+    return CHAR;
+}
+
+\'[ -~]\'       {
+    /* Character literal: 'A', '9', etc. — store ASCII value */
+    yylval.num = (int)yytext[1];
+    if (displayTokens) printf("  TOKEN: CHAR_LIT '%c'\n", yytext[1]);
+    return CHAR_LIT;
+}
+
+":"             { if (displayTokens) printf("  TOKEN: ':'\n"); return ':'; }
+
 \"[^\"]*\" {
     /* String literal — strip surrounding double quotes */
     yytext[yyleng - 1] = '\0';

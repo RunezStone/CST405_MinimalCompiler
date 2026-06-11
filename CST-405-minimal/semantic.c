@@ -49,6 +49,7 @@ static Scope          scopes[MAX_SCOPE_DEPTH];
 static int            scopeDepth      = 0;
 static char*          currentFunction = NULL;
 static int            inFunction      = 0;
+static int            breakDepth      = 0;  /* >0 when inside switch/loop */
 
 /* ─────────────────────────────────────────────────────────────────────────
  * HELPER: get return variable name from end_clause node
@@ -506,7 +507,9 @@ static void checkStmt(ASTNode* node) {
         case NODE_WHILE:
             printf("  ✓ Checking while loop  (line %d)\n", node->lineno);
             checkExpr(node->data.while_stmt.condition);
+            breakDepth++;
             checkStmt(node->data.while_stmt.body);
+            breakDepth--;
             break;
 
         case NODE_FOR_WHILE:
@@ -514,8 +517,51 @@ static void checkStmt(ASTNode* node) {
             checkStmt(node->data.for_while.init);
             checkExpr(node->data.for_while.condition);
             checkStmt(node->data.for_while.update);
+            breakDepth++;
             checkStmt(node->data.for_while.body);
+            breakDepth--;
             break;
+
+        case NODE_BREAK:
+            if (breakDepth == 0) {
+                fprintf(stderr, "  ❌ SEMANTIC ERROR (line %d): 'break' used outside of switch or loop\n",
+                        node->lineno);
+                semInfo.errorCount++;
+            }
+            break;
+
+        case NODE_SWITCH: {
+            printf("  ✓ Checking switch statement at line %d\n", node->lineno);
+            checkExpr(node->data.switch_stmt.expr);
+            int seenDefault = 0;
+            int seenVals[512]; int seenCount = 0;
+            breakDepth++;
+            for (ASTNode* c = node->data.switch_stmt.cases; c;
+                 c = c->data.case_clause.next) {
+                if (c->data.case_clause.isDefault) {
+                    if (seenDefault) {
+                        fprintf(stderr, "  ❌ SEMANTIC ERROR (line %d): switch has duplicate default\n",
+                                node->lineno);
+                        semInfo.errorCount++;
+                    }
+                    seenDefault = 1;
+                } else {
+                    int v = c->data.case_clause.value;
+                    for (int i = 0; i < seenCount; i++) {
+                        if (seenVals[i] == v) {
+                            fprintf(stderr, "  ❌ SEMANTIC ERROR (line %d): duplicate case value %d in switch\n",
+                                    node->lineno, v);
+                            semInfo.errorCount++;
+                        }
+                    }
+                    if (seenCount < 512) seenVals[seenCount++] = v;
+                }
+                if (c->data.case_clause.body)
+                    checkStmt(c->data.case_clause.body);
+            }
+            breakDepth--;
+            break;
+        }
 
         case NODE_BLOCK:
             enterScope();
@@ -911,6 +957,7 @@ void initSemantic(void) {
     scopeDepth           = 0;
     currentFunction      = NULL;
     inFunction           = 0;
+    breakDepth           = 0;
 
     initStructTypes();
 
