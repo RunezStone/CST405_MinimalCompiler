@@ -132,6 +132,18 @@ main:
     move $a0, $t0
     jal func_attackPlayer
     sw   $v0, 8($sp)   # result = call result
+.data
+__str0: .asciiz "Hello world"
+.text
+    la   $t0, __str0
+    # Print string
+    move $a0, $t0
+    li   $v0, 4
+    syscall
+    # Print newline
+    li   $v0, 11
+    li   $a0, 10
+    syscall
     lw $t0, 8($sp)
     li $t1, 0
     seq $t0, $t0, $t1

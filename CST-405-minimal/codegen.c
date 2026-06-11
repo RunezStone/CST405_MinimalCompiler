@@ -13,6 +13,9 @@ static int tempReg = 0;
 /* Counter for generating unique loop labels (Lstart0/Lend0, Lstart1/Lend1, ...) */
 static int loopLabelCount = 0;
 
+/* Counter for generating unique string literal labels (__str0, __str1, ...) */
+static int strLabelCount = 0;
+
 /* Frame size of the current function — set by genFuncDef so that
  * early-return (end) statements inside if bodies can emit the epilogue. */
 static int currentFrameSize = 128;
@@ -117,6 +120,17 @@ static void genExpr(ASTNode* node) {
         case NODE_NUM: {
             int reg = getNextTemp();
             fprintf(output, "    li $t%d, %d\n", reg, node->data.num);
+            break;
+        }
+
+        case NODE_STRING: {
+            /* Emit the string into .data, then load its address */
+            int idx = strLabelCount++;
+            fprintf(output, ".data\n");
+            fprintf(output, "__str%d: .asciiz \"%s\"\n", idx, node->data.name);
+            fprintf(output, ".text\n");
+            int reg = getNextTemp();
+            fprintf(output, "    la   $t%d, __str%d\n", reg, idx);
             break;
         }
 
@@ -527,10 +541,17 @@ void genStmt(ASTNode* node) {
 
         case NODE_PRINT:
             genExpr(node->data.expr);
-            fprintf(output, "    # Print integer\n");
-            fprintf(output, "    move $a0, $t%d\n", tempReg - 1);
-            fprintf(output, "    li   $v0, 1\n");
-            fprintf(output, "    syscall\n");
+            if (node->data.expr && node->data.expr->type == NODE_STRING) {
+                fprintf(output, "    # Print string\n");
+                fprintf(output, "    move $a0, $t%d\n", tempReg - 1);
+                fprintf(output, "    li   $v0, 4\n");
+                fprintf(output, "    syscall\n");
+            } else {
+                fprintf(output, "    # Print integer\n");
+                fprintf(output, "    move $a0, $t%d\n", tempReg - 1);
+                fprintf(output, "    li   $v0, 1\n");
+                fprintf(output, "    syscall\n");
+            }
             fprintf(output, "    # Print newline\n");
             fprintf(output, "    li   $v0, 11\n");
             fprintf(output, "    li   $a0, 10\n");

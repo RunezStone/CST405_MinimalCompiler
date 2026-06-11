@@ -19,6 +19,7 @@ typedef enum {
     /* ── Expressions ── */
     NODE_NUM,           /* Integer literal             e.g. 42          */
     NODE_FLOAT,         /* Float literal               e.g. 3.14        */
+    NODE_STRING,        /* String literal              e.g. "hello"     */
     NODE_VAR,           /* Variable reference          e.g. x           */
     NODE_BINOP,         /* Binary operation            e.g. x + y       */
 
@@ -249,6 +250,7 @@ extern float pendingFloatValue;
 /* Expressions */
 ASTNode* createNum(int value);
 ASTNode* createFloat(float value);
+ASTNode* createString(char* value);  /* NODE_STRING: uses data.name */
 ASTNode* createVar(char* name);
 ASTNode* createBinOp(char op, ASTNode* left, ASTNode* right);
 

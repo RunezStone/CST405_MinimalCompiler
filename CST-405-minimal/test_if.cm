@@ -53,6 +53,7 @@ Program_Start()
     playhealth = playerStats is health;
     print(playhealth);
     result = attackPlayer(x);
+    print("Hello world");
 
     if(result == 0)
     {

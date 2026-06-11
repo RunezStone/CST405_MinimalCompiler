@@ -57,13 +57,14 @@
 54: ARG (null)
 55: t9 = CALL attackPlayer, 1
 56: result = t9
-57: t10 = t9 == 0
-58: IF_FALSE t10 GOTO L6
-59: print 202
-60: GOTO L7
-61: LABEL L6:
-62: print 101
-63: LABEL L7:
-64: print playhealth
-65: print result
-66: FUNC_END Program_Start
+57: print "Hello world"
+58: t10 = t9 == 0
+59: IF_FALSE t10 GOTO L6
+60: print 202
+61: GOTO L7
+62: LABEL L6:
+63: print 101
+64: LABEL L7:
+65: print playhealth
+66: print result
+67: FUNC_END Program_Start

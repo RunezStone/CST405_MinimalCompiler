@@ -39,6 +39,7 @@ ASTNode* root = NULL;          /* Root of the Abstract Syntax Tree */
 %token <num> NUM            /* Integer literal: carries integer value */
 %token <fnum> FNUM          /* Float literal:   carries float value   */
 %token <str> ID             /* Identifier: carries string name */
+%token <str> STRING         /* String literal: carries string value */
 %token INT FLOAT PRINT      /* Type keywords */
 %token FUNC PROGRAM_START   /* Function keywords */
 %token END NULLTOK          /* End-clause keywords */
@@ -508,6 +509,11 @@ expr:
     | FNUM {
         /* Float literal */
         $$ = createFloat($1);
+    }
+    | STRING {
+        /* String literal */
+        $$ = createString($1);
+        free($1);
     }
     | ID {
         /* Variable reference */

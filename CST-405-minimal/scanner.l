@@ -106,6 +106,14 @@ int yycolumn = 1;
     return ELSE;
 }
 
+\"[^\"]*\" {
+    /* String literal — strip surrounding double quotes */
+    yytext[yyleng - 1] = '\0';
+    yylval.str = strdup(yytext + 1);
+    if (displayTokens) printf("  TOKEN: STRING \"%s\"\n", yylval.str);
+    return STRING;
+}
+
 [a-zA-Z_][a-zA-Z0-9_]* {
     if (displayTokens) printf("  TOKEN: ID '%s'\n", yytext);
     yylval.str = strdup(yytext);

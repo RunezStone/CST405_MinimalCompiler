@@ -58,15 +58,16 @@
 55: ARG x
 56: t9 = CALL attackPlayer, 1
 57: result = t9
-58: t10 = result == 0
-59: IF_FALSE t10 GOTO L6
-60: y = 202
-61: PRINT y
-62: GOTO L7
-63: LABEL L6:
-64: y = 101
-65: PRINT y
-66: LABEL L7:
-67: PRINT playhealth
-68: PRINT result
-69: FUNC_END Program_Start
+58: PRINT "Hello world"
+59: t10 = result == 0
+60: IF_FALSE t10 GOTO L6
+61: y = 202
+62: PRINT y
+63: GOTO L7
+64: LABEL L6:
+65: y = 101
+66: PRINT y
+67: LABEL L7:
+68: PRINT playhealth
+69: PRINT result
+70: FUNC_END Program_Start

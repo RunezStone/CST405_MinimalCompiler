@@ -42,6 +42,16 @@ ASTNode* createFloat(float value) {
     return node;
 }
 
+/* Create a string literal node.
+ * value is the content between the quotes (no surrounding quotes stored). */
+ASTNode* createString(char* value) {
+    ASTNode* node = malloc(sizeof(ASTNode));
+    node->type       = NODE_STRING;
+    node->lineno     = yylineno;
+    node->data.name  = strdup(value);
+    return node;
+}
+
 /* Create a variable reference node */
 ASTNode* createVar(char* name) {
     ASTNode* node = malloc(sizeof(ASTNode));
@@ -417,6 +427,11 @@ void printAST(ASTNode* node, int level) {
         case NODE_FLOAT:
             indent(level);
             printf("FLOAT: %g\n", node->data.fval);
+            break;
+
+        case NODE_STRING:
+            indent(level);
+            printf("STRING: \"%s\"\n", node->data.name);
             break;
 
         case NODE_VAR:

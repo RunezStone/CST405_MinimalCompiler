@@ -359,6 +359,13 @@ char* generateTACExpr(ASTNode* node) {
             return temp;
         }
 
+        case NODE_STRING: {
+            /* Return the string content wrapped in quotes for TAC display */
+            char* temp = malloc(strlen(node->data.name) + 3);
+            sprintf(temp, "\"%s\"", node->data.name);
+            return temp;
+        }
+
         case NODE_VAR:
             return strdup(node->data.name);
 
