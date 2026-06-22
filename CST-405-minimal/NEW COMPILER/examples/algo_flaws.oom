@@ -1,0 +1,67 @@
+// algo_flaws.oom — programs with detectable algorithmic logic flaws
+//
+// [LOGIC] sign()       — non-void function, missing return for x <= 0
+// [LOGIC] safeDivide() — divisor 'b' never checked for zero
+// [ALGO]  scaleUp()    — repeated addition instead of multiplication
+// [PERF]  compute()    — loop-invariant expression recomputed every iteration
+// [LOGIC] countUp()    — off-by-one: starts at 1 with i < n (n-1 iterations)
+
+// Flaw: non-void function missing return in the x <= 0 case
+func int sign(int x) {
+    if (x > 0) {
+        return 1;
+    }
+    // Missing: no return for x == 0 or x < 0
+}
+
+// Flaw: divides by 'b' but never checks whether b == 0
+func int safeDivide(int a, int b) {
+    return a / b;
+}
+
+// Flaw: repeated addition — O(n) when x * factor would be O(1)
+func int scaleUp(int x, int factor) {
+    int result;
+    int i;
+    result = 0;
+    i = 0;
+    while (i < factor) {
+        result = result + x;
+        i = i + 1;
+    }
+    return result;
+}
+
+// Flaw: loop-invariant expression (a + b) recomputed on every iteration
+func int compute(int a, int b, int n) {
+    int i;
+    int sum;
+    int step;
+    i = 0;
+    sum = 0;
+    while (i < n) {
+        step = a + b;        // a and b never change — hoist this out
+        sum = sum + step;
+        i = i + 1;
+    }
+    return sum;
+}
+
+// Flaw: off-by-one — starts at 1 with i < n, so only n-1 iterations run
+func int countUp(int n) {
+    int i;
+    int count;
+    i = 1;
+    count = 0;
+    while (i < n) {
+        count = count + 1;
+        i = i + 1;
+    }
+    return count;
+}
+
+func void main() {
+    print(scaleUp(3, 4));     // 12
+    print(compute(2, 3, 5));  // 25  (step=5, sum=5*5=25)
+    print(countUp(5));        // programmer expects 5, but gets 4 (off-by-one)
+}

@@ -1,0 +1,19 @@
+; OOMini Three-Address Code
+; ----------------------------------------
+
+func main:
+    decl int i
+    decl int sink
+    i = 0
+    sink = 99
+L0:
+    t0 = i < 10
+    ifFalse t0 goto L1
+    t1 = i + 1
+    i = t1
+    goto L0
+L1:
+    print i
+    return
+endfunc
+

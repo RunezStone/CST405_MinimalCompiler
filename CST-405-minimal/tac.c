@@ -8,6 +8,10 @@
 TACList tacList;
 TACList optimizedList;
 
+/* Optimization metrics (for the performance report) */
+int constFoldCount = 0;   /* # of constant-folded expressions   */
+int deadCodeCount  = 0;   /* # of dead TAC instructions removed  */
+
 /* ─────────────────────────────────────────────────────────────────────────
  * REGISTER ALLOCATOR
  * Maps TAC temporaries (t0, t1, ...) to real MIPS registers ($t0–$t7).
@@ -16,7 +20,7 @@ TACList optimizedList;
  * ───────────────────────────────────────────────────────────────────────── */
 
 #define NUM_REGS   8    /* MIPS $t0–$t7              */
-#define MAX_SPILLS 64   /* Max spill slots on stack  */
+#define MAX_SPILLS 8192   /* Max spill slots on stack  */
 
 typedef struct {
     char name[32];  /* Which temporary is here ("" = free) */
@@ -978,7 +982,7 @@ void optimizeTAC() {
         curr = curr->next;
     }
 
-    VarValue values[100];
+    static VarValue values[20000];
     int valueCount = 0;
     int pass = 1;
     int changed;
@@ -1041,11 +1045,14 @@ int optimizeTACPass(VarValue* values, int* valueCount) {
                     else                          res = (lv != rv);
                     char* resultStr = malloc(24);
                     sprintf(resultStr, "%d", res);
-                    values[*valueCount].var   = strdup(curr->result);
-                    values[*valueCount].value = resultStr;
-                    (*valueCount)++;
+                    if (*valueCount < 20000) {
+                        values[*valueCount].var   = strdup(curr->result);
+                        values[*valueCount].value = resultStr;
+                        (*valueCount)++;
+                    }
                     newInstr = createTAC(TAC_ASSIGN, resultStr, NULL, curr->result);
                     changed = 1;
+                    constFoldCount++;   /* metric: folded one expression */
                 } else {
                     newInstr = createTAC(curr->op, left, right, curr->result);
                     if (strcmp(left,  curr->arg1) != 0 ||
@@ -1068,9 +1075,11 @@ int optimizeTACPass(VarValue* values, int* valueCount) {
                 for (int i = *valueCount - 1; i >= 0; i--)
                     if (strcmp(values[i].var, value) == 0) { value = values[i].value; break; }
                 if (strcmp(value, curr->arg1) != 0) changed = 1;
-                values[*valueCount].var   = strdup(curr->result);
-                values[*valueCount].value = strdup(value);
-                (*valueCount)++;
+                if (*valueCount < 20000) {
+                    values[*valueCount].var   = strdup(curr->result);
+                    values[*valueCount].value = strdup(value);
+                    (*valueCount)++;
+                }
                 newInstr = createTAC(TAC_ASSIGN, value, NULL, curr->result);
                 break;
             }
@@ -1175,20 +1184,25 @@ int optimizeTACPass(VarValue* values, int* valueCount) {
     return changed;
 }
 
+#define MAX_USED_VARS 20000
 void eliminateDeadCode() {
-    /* Pass 1: collect every variable that is READ */
-    char used[100][32];
+    /* Pass 1: collect every variable that is READ.
+     * Bounds-guarded so large programs cannot overflow this buffer. */
+    static char used[MAX_USED_VARS][32];
     int  usedCount = 0;
 
     TACInstr* curr = optimizedList.head;
     while (curr) {
-        if (curr->arg1 && !isdigit((unsigned char)curr->arg1[0]))
+        if (curr->arg1 && !isdigit((unsigned char)curr->arg1[0]) &&
+            usedCount < MAX_USED_VARS)
             strncpy(used[usedCount++], curr->arg1, 31);
-        if (curr->arg2 && !isdigit((unsigned char)curr->arg2[0]))
+        if (curr->arg2 && !isdigit((unsigned char)curr->arg2[0]) &&
+            usedCount < MAX_USED_VARS)
             strncpy(used[usedCount++], curr->arg2, 31);
         /* TAC_ARG reads result; TAC_RETURN reads result */
         if ((curr->op == TAC_ARG || curr->op == TAC_RETURN) &&
-             curr->result && !isdigit((unsigned char)curr->result[0]))
+             curr->result && !isdigit((unsigned char)curr->result[0]) &&
+             usedCount < MAX_USED_VARS)
             strncpy(used[usedCount++], curr->result, 31);
         curr = curr->next;
     }
@@ -1226,6 +1240,7 @@ void eliminateDeadCode() {
         if (!isUsed) {
             printf("  ✂ DCE: removing dead instruction '%s = ...'\n",
                    curr->result);
+            deadCodeCount++;   /* metric: removed one dead instruction */
             TACInstr* dead = curr;
             if (prev) prev->next = curr->next;
             else       optimizedList.head = curr->next;
@@ -1242,6 +1257,77 @@ void eliminateDeadCode() {
 /* ─────────────────────────────────────────────────────────────────────────
  * FILE OUTPUT
  * ───────────────────────────────────────────────────────────────────────── */
+
+/* Count instructions in a TAC list. */
+static int countTAC(TACList* list) {
+    int n = 0;
+    for (TACInstr* c = list->head; c; c = c->next) n++;
+    return n;
+}
+
+/* Count distinct temporaries (t0, t1, ...) referenced in a TAC list. */
+static int countTemps(TACList* list) {
+    int maxIdx = -1;
+    for (TACInstr* c = list->head; c; c = c->next) {
+        char* fields[3] = { c->arg1, c->arg2, c->result };
+        for (int i = 0; i < 3; i++) {
+            char* s = fields[i];
+            if (s && s[0] == 't' && isdigit((unsigned char)s[1])) {
+                int idx = atoi(s + 1);
+                if (idx > maxIdx) maxIdx = idx;
+            }
+        }
+    }
+    return maxIdx + 1;   /* t0..tMax  =>  Max+1 temporaries */
+}
+
+/* =========================================================
+ * PERFORMANCE REPORT
+ * Prints the unoptimized-vs-optimized comparison to stdout
+ * and writes the same table to report.txt.
+ *   mipsCount : non-directive/non-label lines in the .s file
+ *   unoptMs   : compile time without the optimizer pass
+ *   optMs     : compile time including the optimizer pass
+ * ========================================================= */
+void generatePerformanceReport(const char* srcFile, int mipsCount,
+                               double unoptMs, double optMs) {
+    int tacU = countTAC(&tacList);
+    int tacO = countTAC(&optimizedList);
+    int tmpU = countTemps(&tacList);
+    int tmpO = countTemps(&optimizedList);
+
+    /* percentage reduction helper (guard divide-by-zero) */
+    #define PCT(u, o) ((u) > 0 ? (int)(((double)((u) - (o)) / (u)) * 100.0 + 0.5) : 0)
+
+    FILE* rpt = fopen("report.txt", "w");
+    FILE* outs[2]; int nOut = 0;
+    outs[nOut++] = stdout;
+    if (rpt) outs[nOut++] = rpt;
+
+    for (int k = 0; k < nOut; k++) {
+        FILE* f = outs[k];
+        fprintf(f, "\n===== Compiler Performance Report =====\n");
+        fprintf(f, "Source file       : %s\n\n", srcFile);
+        fprintf(f, "                     Unoptimized    Optimized    Reduction\n");
+        fprintf(f, "TAC instructions :    %9d    %9d    %6d%%\n", tacU, tacO, PCT(tacU, tacO));
+        fprintf(f, "MIPS instructions:    %9d    %9d    %6d%%\n", mipsCount, mipsCount, 0);
+        fprintf(f, "Temporaries used :    %9d    %9d    %6d%%\n", tmpU, tmpO, PCT(tmpU, tmpO));
+        fprintf(f, "Const folds      :    %9d    %9d\n", 0, constFoldCount);
+        fprintf(f, "Dead code removed:    %9d    %9d\n", 0, deadCodeCount);
+        fprintf(f, "Compile time (ms):    %9.2f    %9.2f\n", unoptMs, optMs);
+        fprintf(f, "Sim time (ms)    :    %9s    %9s\n", "(spim)", "(spim)");
+        fprintf(f, "=======================================\n");
+        fprintf(f, "Note: MIPS is generated from the AST, so its count is identical\n");
+        fprintf(f, "      with and without optimization (the optimizer acts on the TAC).\n");
+        fprintf(f, "      Sim time is reported by SPIM:  time spim -file %s\n",
+                "<output>.s");
+    }
+    #undef PCT
+    if (rpt) {
+        fclose(rpt);
+        printf("\n  \xE2\x9C\x93 Performance report written to: report.txt\n");
+    }
+}
 
 void saveTACToFile(const char* filename) {
     FILE* file = fopen(filename, "w");

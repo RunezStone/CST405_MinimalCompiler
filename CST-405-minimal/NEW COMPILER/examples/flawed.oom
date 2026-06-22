@@ -1,0 +1,31 @@
+// flawed.oom  —  intentional logical flaws for Phase 6 demonstration
+// After self-correction, the program should print: 10
+
+func void main() {
+    int i;       // used in the while loop
+    int ghost;   // never referenced at all  => [FIX] declaration removed
+    int sink;    // only ever written, never read  => [WARN] write-only
+
+    i    = 0;
+    sink = 99;   // written but never read
+
+    // Flaw 1: if-condition is always false — then-branch is dead code
+    if (0) {
+        print(999);
+    }
+
+    // Flaw 2: self-assignment has no effect
+    i = i;
+
+    // No flaw: normal while loop counts up to 10
+    while (i < 10) {
+        i = i + 1;
+    }
+
+    // Normal print
+    print(i);
+
+    // Flaw 3: dead code after return
+    return;
+    print(888);
+}

@@ -1,0 +1,23 @@
+=== Phase 1+2: Scanning & Parsing examples/counter.oom ===
+Parse OK.
+
+=== Phase 3: Semantic Analysis ===
+Semantic analysis: OK (no errors)
+
+===== CLASS REGISTRY =====
+class Counter   (objectSize=8 bytes)
+  fields:
+    [+ 4] int n
+  vtable:
+    slot 0 -> Counter_init  (void, 0 params)
+    slot 1 -> Counter_inc  (void, 0 params)
+    slot 2 -> Counter_get  (int, 0 params)
+==========================
+
+=== Phase 4: Three-Address Code ===
+
+=== Phase 5: MIPS Code Generation ===
+MIPS written to out_c.s
+
+Done. Run it with:
+    spim -file out_c.s

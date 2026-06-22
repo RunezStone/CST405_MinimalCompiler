@@ -1,0 +1,432 @@
+/* =========================================================
+ * test_final.cm  -  CST-405 Final Compiler Test
+ *
+ * Exercises every major feature of the mini C-minus compiler,
+ * written in THIS compiler's actual dialect:
+ *   - globals first, then functions, then Program_Start()
+ *   - functions:  func name(int a) ... end <var|literal|null>;
+ *   - calls are the RHS of an assignment:  x = f(a);
+ *   - C-style loop header lives inside while(...)
+ *   - switch uses ':' headers and closes with 'close;'
+ *
+ * Build & run:
+ *   make
+ *   ./minicompiler test_final.cm test_final.s
+ *   spim -file test_final.s
+ *
+ * The compiler always emits unoptimized + optimized TAC
+ *   (test_final.cm.tac  and  test_final.cm.opt.tac).
+ *
+ * Notes on this dialect (vs. textbook C-minus):
+ *   - No 'boolean' / 'string' keyword: booleans are int 0/1,
+ *     and strings are used as print() literals.
+ *   - No recursion (per instructor) and no array parameters:
+ *     a function operates on a GLOBAL array instead.
+ *   - 'float' variables parse and type-check, but the code
+ *     generator is integer-backed, so floats are demonstrated
+ *     with whole-number values (see Section 1e).
+ *
+ * Every print() is annotated with its expected value.
+ * =========================================================*/
+
+/* ===== GLOBALS (declared before any function) ===== */
+int gCount;            /* modified by a function (increment) */
+int gArr[5];           /* array processed by a function      */
+int gSize;
+
+/* =========================================================
+ * FUNCTION DEFINITIONS
+ * =========================================================*/
+
+/* void: no parameters, no return value (end null;) */
+func greet()
+    print(999);        /* 999 */
+    end null;
+
+/* int: no parameters */
+func getAnswer()
+    int ans;
+    ans = 42;
+    end ans;
+
+/* int: single int parameter */
+func square(int n)
+    int result;
+    result = n * n;
+    end result;
+
+/* "float" return via mixed int params (integer division: 10/3 = 3) */
+func average(int a, int b)
+    int r;
+    r = a / b;
+    end r;
+
+/* void that modifies a global */
+func increment()
+    gCount = gCount + 1;
+    end null;
+
+/* int: factorial via a loop (no recursion) */
+func factorial(int n)
+    int result;
+    int i;
+    result = 1;
+    i = 1;
+    while (i <= n)
+        result = result * i;
+        i = i + 1;
+    continue;
+    end result;
+
+/* int: sums a GLOBAL array (no array parameters in this grammar) */
+func sumArray(int size)
+    int total;
+    int idx;
+    total = 0;
+    idx = 0;
+    while (idx < size)
+        total = total + gArr[idx];
+        idx = idx + 1;
+    continue;
+    end total;
+
+/* boolean (as int 0/1): is n even? */
+func isEven(int n)
+    int half;
+    half = n / 2 * 2;
+    if (n == half)
+    {
+        end 1;
+    }
+    end 0;
+
+/* int: iterative Fibonacci (fib(6) = 8) */
+func fibFunc(int n)
+    int a;
+    int b;
+    int next;
+    int k;
+    a = 0;
+    b = 1;
+    k = 0;
+    while (k < n)
+        next = a + b;
+        a = b;
+        b = next;
+        k = k + 1;
+    continue;
+    end a;
+
+/* =========================================================
+ * PROGRAM ENTRY POINT
+ * =========================================================*/
+Program_Start()
+
+    /* ===== SECTION 1 - VARIABLES & TYPES ===== */
+
+    /* 1a. int variables */
+    int a;
+    int b;
+    int c;
+    a = 42;
+    b = 8;
+    c = a - b;
+    print(a);          /* 42 */
+    print(b);          /* 8  */
+    print(c);          /* 34 */
+
+    /* 1b. boolean values (represented as int 0/1) */
+    int flag;
+    int done;
+    flag = 1;
+    done = 0;
+    print(flag);       /* 1  (true)  */
+    print(done);       /* 0  (false) */
+
+    /* 1c. char variables (printed as characters) */
+    char grade;
+    char init;
+    grade = 'A';
+    init = 'Z';
+    print(grade);      /* A */
+    print(init);       /* Z */
+
+    /* 1d. string literals */
+    print("Alice");    /* Alice */
+    print("Hello");    /* Hello */
+
+    /* 1e. int array - element store + load */
+    int nums[6];
+    nums[0] = 10;
+    nums[1] = 20;
+    nums[2] = 30;
+    nums[3] = 40;
+    nums[4] = 50;
+    nums[5] = 60;
+    print(nums[0]);    /* 10 */
+    print(nums[3]);    /* 40 */
+    print(nums[5]);    /* 60 */
+
+    /* ===== SECTION 2 - FUNCTIONS ===== */
+
+    int dummy;
+    dummy = greet();   /* 999  (void function) */
+
+    int magic;
+    magic = getAnswer();
+    print(magic);      /* 42 */
+
+    int sq;
+    sq = square(7);
+    print(sq);         /* 49 */
+
+    int avg;
+    avg = average(10, 3);
+    print(avg);        /* 3   (integer division) */
+
+    gCount = 0;
+    dummy = increment();
+    dummy = increment();
+    dummy = increment();
+    print(gCount);     /* 3   (function modified a global) */
+
+    int fact;
+    fact = factorial(5);
+    print(fact);       /* 120 */
+
+    gArr[0] = 1;
+    gArr[1] = 2;
+    gArr[2] = 3;
+    gArr[3] = 4;
+    gArr[4] = 5;
+    int s;
+    s = sumArray(5);
+    print(s);          /* 15  (function over a global array) */
+
+    int even;
+    even = isEven(4);
+    print(even);       /* 1 */
+    even = isEven(7);
+    print(even);       /* 0 */
+
+    /* ===== SECTION 3 - LOOPS ===== */
+
+    /* 3a. while loop: sum 1..10 */
+    int i;
+    int total;
+    i = 1;
+    total = 0;
+    while (i <= 10)
+        total = total + i;
+        i = i + 1;
+    continue;
+    print(total);      /* 55 */
+
+    /* 3b. C-style for loop: sum 1..5 */
+    int j;
+    int fsum;
+    fsum = 0;
+    while (j = 1; j <= 5; j = j + 1)
+        fsum = fsum + j;
+    continue;
+    print(fsum);       /* 15 */
+
+    /* 3c. loop fills an array, second loop prints it */
+    int data[5];
+    while (j = 0; j < 5; j = j + 1)
+        data[j] = j * j;
+    continue;
+    while (j = 0; j < 5; j = j + 1)
+        print(data[j]);   /* 0 1 4 9 16 */
+    continue;
+
+    /* 3d. nested loops: 2x3 multiplication table */
+    int row;
+    int col;
+    int product;
+    while (row = 1; row <= 2; row = row + 1)
+        while (col = 1; col <= 3; col = col + 1)
+            product = row * col;
+            print(product);   /* 1 2 3   2 4 6 */
+        continue;
+    continue;
+
+    /* 3e. while loop nested inside a for loop */
+    int kk;
+    int acc;
+    while (j = 1; j <= 3; j = j + 1)
+        kk = 0;
+        acc = 0;
+        while (kk < j)
+            acc = acc + 1;
+            kk = kk + 1;
+        continue;
+        print(acc);       /* 1 2 3 */
+    continue;
+
+    /* ===== SECTION 4 - DECISIONS ===== */
+
+    /* 4a. simple if */
+    int val;
+    val = 10;
+    if (val > 5)
+    {
+        print(100);    /* 100 */
+    }
+
+    /* 4b. if-else */
+    val = 3;
+    if (val > 5)
+    {
+        print(200);
+    }
+    else
+    {
+        print(201);    /* 201 */
+    }
+
+    /* 4c. if-else-if chain */
+    val = 75;
+    if (val >= 90)
+    {
+        print(300);
+    }
+    else if (val >= 80)
+    {
+        print(301);
+    }
+    else if (val >= 70)
+    {
+        print(302);    /* 302 */
+    }
+    else
+    {
+        print(303);
+    }
+
+    /* 4d. nested if */
+    int p;
+    int q;
+    p = 5;
+    q = 10;
+    if (p < q)
+    {
+        if (p > 0)
+        {
+            print(400);  /* 400 */
+        }
+        else
+        {
+            print(401);
+        }
+    }
+    else
+    {
+        print(402);
+    }
+
+    /* 4e. switch: simple dispatch */
+    int day;
+    day = 3;
+    switch (day):
+        case 1: print(501); break;
+        case 2: print(502); break;
+        case 3: print(503); break;   /* 503 */
+        default: print(500); break;
+    close;
+
+    /* 4f. switch: fall-through cases */
+    int season;
+    season = 2;
+    switch (season):
+        case 1:
+        case 2:
+        case 3: print(510); break;   /* 510 */
+        case 4: print(511); break;
+        default: print(512); break;
+    close;
+
+    /* 4g. switch: default clause */
+    int code;
+    code = 99;
+    switch (code):
+        case 1: print(520); break;
+        case 2: print(521); break;
+        default: print(522); break;  /* 522 */
+    close;
+
+    /* 4h. nested switch */
+    int outer;
+    int inner;
+    outer = 2;
+    inner = 1;
+    switch (outer):
+        case 1:
+            switch (inner):
+                case 1: print(531); break;
+                default: print(530); break;
+            close;
+            break;
+        case 2:
+            switch (inner):
+                case 1: print(532); break;  /* 532 */
+                default: print(530); break;
+            close;
+            break;
+        default: print(530); break;
+    close;
+
+    /* ===== SECTION 5 - INTEGRATION ===== */
+
+    /* 5a. Fibonacci by loop (first 7 terms) */
+    int fibA;
+    int fibB;
+    int fibNext;
+    int n;
+    fibA = 0;
+    fibB = 1;
+    print(fibA);   /* 0 */
+    print(fibB);   /* 1 */
+    n = 2;
+    while (n < 7)
+        fibNext = fibA + fibB;
+        print(fibNext);   /* 1 2 3 5 8 */
+        fibA = fibB;
+        fibB = fibNext;
+        n = n + 1;
+    continue;
+
+    /* 5b. Fibonacci by function call, fib(6) = 8 */
+    int fibR;
+    fibR = fibFunc(6);
+    print(fibR);   /* 8 */
+
+    /* ===== SECTION 6 - PERFORMANCE ===== */
+
+    /* 6a. constant-folding target */
+    int perf;
+    perf = 2 * 3 + 4 * 5 - 1;
+    print(perf);   /* 25 */
+
+    /* 6b. loop-invariant / counted loop */
+    int limit;
+    int lcount;
+    limit = 100;
+    lcount = 0;
+    while (i = 0; i < limit; i = i + 1)
+        lcount = lcount + 1;
+    continue;
+    print(lcount);  /* 100 */
+
+    /* 6c. dead-code-elimination target (else branch never runs) */
+    int dc;
+    dc = 1;
+    if (dc == 1)
+    {
+        print(601);   /* 601 */
+    }
+    else
+    {
+        print(602);   /* dead code */
+    }
+end null;

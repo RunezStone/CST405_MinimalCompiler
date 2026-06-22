@@ -1,0 +1,1224 @@
+/* ======================================================================
+ * algorithms_museum.oom
+ *
+ * A "kitchen sink" program written in Object-Oriented C-Minus (.oom).
+ * It exercises many classic computational problems:
+ *
+ *     - dynamic lists, stacks, queues       (collections)
+ *     - sorting (bubble / selection / insertion / quick) via polymorphism
+ *     - number theory (primes, gcd, lcm, factorial, fibonacci)
+ *     - dense matrices (multiply, trace, determinant)
+ *     - text buffers (search, hashing, comparison)
+ *     - a hash map (open addressing, linear probing)
+ *     - directed graphs (reachability, all-pairs shortest path)
+ *     - descriptive statistics (mean, variance, median, mode)
+ *
+ * Language conventions used here (base C-Minus is small):
+ *     - there is no '%' operator        -> see Util.mod()
+ *     - there is no '&&' / '||'         -> nested if statements / flags
+ *     - there is no 'for' loop          -> while loops only
+ *     - booleans are plain ints (0 / 1)
+ *     - 'new X()' allocates and zero-fills; an init*() method is called
+ *       by hand afterwards to set things up
+ *     - all local declarations appear at the top of a method body
+ *
+ * Everything below is intended to run and produce sensible-looking
+ * output. It is written the way a well-meaning beginner might write it.
+ * ====================================================================== */
+
+
+/* ----------------------------------------------------------------------
+ * Util: a grab-bag base class. Almost everything "extends Util" so that
+ * it can reuse these little helpers. (Inheritance as a junk drawer.)
+ * -------------------------------------------------------------------- */
+class Util {
+
+    int mod(int a, int b) {
+        /* remainder after integer division */
+        return a - (a / b) * b;
+    }
+
+    int abs(int x) {
+        if (x < 0) {
+            return 0 - x;
+        }
+        return x;
+    }
+
+    int min2(int a, int b) {
+        if (a < b) {
+            return a;
+        }
+        return b;
+    }
+
+    int max2(int a, int b) {
+        if (a > b) {
+            return a;
+        }
+        return b;
+    }
+
+    int ipow(int base, int exp) {
+        /* base raised to exp -- fine for small exponents */
+        int result;
+        int i;
+        result = 1;
+        i = 0;
+        while (i < exp) {
+            result = result * base;
+            i = i + 1;
+        }
+        return result;
+    }
+
+    int isqrtSlow(int n) {
+        /* largest k with k*k <= n, found by counting up one at a time */
+        int k;
+        k = 0;
+        while (k * k <= n) {
+            k = k + 1;
+        }
+        return k - 1;
+    }
+}
+
+
+/* ----------------------------------------------------------------------
+ * IntList: a growable list of ints backed by a fixed array.
+ * -------------------------------------------------------------------- */
+class IntList extends Util {
+    int data[64];
+    int count;
+
+    void initList() {
+        this.count = 0;
+    }
+
+    int size() {
+        return this.count;
+    }
+
+    void add(int x) {
+        /* append x to the end of the list */
+        this.data[this.count] = x;
+        this.count = this.count + 1;
+    }
+
+    int get(int i) {
+        return this.data[i];
+    }
+
+    void set(int i, int x) {
+        this.data[i] = x;
+    }
+
+    int indexOf(int x) {
+        int i;
+        i = 0;
+        while (i < this.count) {
+            if (this.data[i] == x) {
+                return i;
+            }
+            i = i + 1;
+        }
+        return 0 - 1;
+    }
+
+    int contains(int x) {
+        if (this.indexOf(x) < 0) {
+            return 0;
+        }
+        return 1;
+    }
+
+    void insertAt(int idx, int x) {
+        int i;
+        i = this.count;
+        while (i > idx) {
+            this.data[i] = this.data[i - 1];
+            i = i - 1;
+        }
+        this.data[idx] = x;
+        this.count = this.count + 1;
+    }
+
+    void removeAt(int idx) {
+        int i;
+        i = idx;
+        while (i < this.count - 1) {
+            this.data[i] = this.data[i + 1];
+            i = i + 1;
+        }
+        this.count = this.count - 1;
+    }
+
+    int maxValue() {
+        int i;
+        int best;
+        best = this.data[0];
+        i = 0;
+        while (i <= this.count) {
+            if (this.data[i] > best) {
+                best = this.data[i];
+            }
+            i = i + 1;
+        }
+        return best;
+    }
+
+    int sum() {
+        int i;
+        int s;
+        s = 0;
+        i = 0;
+        while (i < this.count) {
+            s = s + this.data[i];
+            i = i + 1;
+        }
+        return s;
+    }
+
+    void reverse() {
+        int i;
+        int j;
+        int t;
+        i = 0;
+        j = this.count - 1;
+        while (i < j) {
+            t = this.data[i];
+            this.data[i] = this.data[j];
+            this.data[j] = t;
+            i = i + 1;
+            j = j - 1;
+        }
+    }
+
+    void copyFrom(IntList other) {
+        int i;
+        i = 0;
+        /* copy every slot of the backing array, just to be safe */
+        while (i < 64) {
+            this.data[i] = other.get(i);
+            i = i + 1;
+        }
+        this.count = other.size();
+    }
+
+    void bubbleSortSelf() {
+        int i;
+        int j;
+        int t;
+        i = 0;
+        while (i < this.count) {
+            j = 0;
+            while (j < this.count - 1) {
+                if (this.data[j] > this.data[j + 1]) {
+                    t = this.data[j];
+                    this.data[j] = this.data[j + 1];
+                    this.data[j + 1] = t;
+                }
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+    }
+
+    void printAll() {
+        int i;
+        i = 0;
+        while (i < this.count) {
+            print this.data[i];
+            i = i + 1;
+        }
+    }
+}
+
+
+/* ----------------------------------------------------------------------
+ * IntStack: a stack. "A stack is just a list, right?"
+ * -------------------------------------------------------------------- */
+class IntStack extends IntList {
+
+    void push(int x) {
+        this.add(x);
+    }
+
+    int pop() {
+        int top;
+        top = this.data[this.count - 1];
+        this.removeAt(this.count - 1);
+        return top;
+    }
+
+    int peek() {
+        return this.data[this.count - 1];
+    }
+
+    int isEmpty() {
+        if (this.count == 0) {
+            return 1;
+        }
+        return 0;
+    }
+}
+
+
+/* ----------------------------------------------------------------------
+ * IntQueue: a FIFO queue. Also "just a list".
+ * -------------------------------------------------------------------- */
+class IntQueue extends IntList {
+
+    void enqueue(int x) {
+        this.add(x);
+    }
+
+    int dequeue() {
+        int front;
+        front = this.data[0];
+        this.removeAt(0);
+        return front;
+    }
+
+    int isEmpty() {
+        if (this.count == 0) {
+            return 1;
+        }
+        return 0;
+    }
+}
+
+
+/* ----------------------------------------------------------------------
+ * Sorter hierarchy. The base declares a virtual sort(); each subclass
+ * overrides it. main() holds a Sorter variable and lets dynamic dispatch
+ * pick the algorithm at run time.
+ * -------------------------------------------------------------------- */
+class Sorter extends Util {
+
+    /* overridden by subclasses; returns 0 (a comparison count, unused) */
+    int sort(int a[], int n) {
+        return 0;
+    }
+
+    int isSorted(int a[], int n) {
+        int i;
+        i = 0;
+        while (i < n - 1) {
+            if (a[i] > a[i + 1]) {
+                return 0;
+            }
+            i = i + 1;
+        }
+        return 1;
+    }
+
+    void swap(int a[], int i, int j) {
+        int t;
+        t = a[i];
+        a[i] = a[j];
+        a[j] = t;
+    }
+}
+
+
+class BubbleSorter extends Sorter {
+    int sort(int a[], int n) {
+        int i;
+        int j;
+        i = 0;
+        while (i < n) {
+            j = 0;
+            while (j < n - 1) {
+                if (a[j] > a[j + 1]) {
+                    this.swap(a, j, j + 1);
+                }
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+        return 0;
+    }
+}
+
+
+class SelectionSorter extends Sorter {
+    int sort(int a[], int n) {
+        int i;
+        int j;
+        int minIdx;
+        int junk;
+        i = 0;
+        while (i < n) {
+            minIdx = i;
+            j = i + 1;
+            while (j < n) {
+                if (a[j] < a[minIdx]) {
+                    minIdx = j;
+                }
+                j = j + 1;
+            }
+            this.swap(a, i, minIdx);
+            /* double-check our progress so far, just to be safe */
+            junk = this.isSorted(a, i + 1);
+            i = i + 1;
+        }
+        return 0;
+    }
+}
+
+
+class InsertionSorter extends Sorter {
+    int sort(int a[], int n) {
+        int i;
+        int key;
+        int j;
+        i = 1;
+        while (i < n) {
+            key = a[i];
+            j = i - 1;
+            while (j >= 0) {
+                if (a[j] > key) {
+                    a[j + 1] = a[j];
+                    j = j - 1;
+                } else {
+                    /* nothing to do; force the loop to stop */
+                    j = 0 - 1;
+                }
+            }
+            a[j + 1] = key;
+            i = i + 1;
+        }
+        return 0;
+    }
+}
+
+
+class QuickSorter extends Sorter {
+
+    /* quicksort: the fastest general-purpose sort there is */
+    int sort(int a[], int n) {
+        this.quick(a, 0, n - 1);
+        return 0;
+    }
+
+    void quick(int a[], int lo, int hi) {
+        int p;
+        if (lo < hi) {
+            p = this.partition(a, lo, hi);
+            this.quick(a, lo, p - 1);
+            this.quick(a, p + 1, hi);
+        }
+    }
+
+    int partition(int a[], int lo, int hi) {
+        int pivot;
+        int i;
+        int j;
+        pivot = a[hi];
+        i = lo - 1;
+        j = lo;
+        while (j < hi) {
+            if (a[j] <= pivot) {
+                i = i + 1;
+                this.swap(a, i, j);
+            }
+            j = j + 1;
+        }
+        this.swap(a, i + 1, hi);
+        return i + 1;
+    }
+}
+
+
+/* ----------------------------------------------------------------------
+ * NumberTheory: primes, gcd/lcm, factorial, fibonacci.
+ * -------------------------------------------------------------------- */
+class NumberTheory extends Util {
+
+    /* simple primality test */
+    int isPrime(int n) {
+        int d;
+        d = 2;
+        while (d < n) {
+            if (this.mod(n, d) == 0) {
+                return 0;
+            }
+            d = d + 1;
+        }
+        return 1;
+    }
+
+    int countPrimesBelow(int limit) {
+        int c;
+        int k;
+        c = 0;
+        k = 2;
+        while (k < limit) {
+            if (this.isPrime(k) == 1) {
+                c = c + 1;
+            }
+            k = k + 1;
+        }
+        return c;
+    }
+
+    int nthPrime(int idx) {
+        /* returns the idx-th prime (1-based) */
+        int found;
+        int num;
+        found = 0;
+        num = 1;
+        while (found < idx) {
+            num = num + 1;
+            if (this.isPrime(num) == 1) {
+                found = found + 1;
+            }
+        }
+        return num;
+    }
+
+    int gcd(int a, int b) {
+        while (a != b) {
+            if (a > b) {
+                a = a - b;
+            } else {
+                b = b - a;
+            }
+        }
+        return a;
+    }
+
+    int lcm(int a, int b) {
+        return (a * b) / this.gcd(a, b);
+    }
+
+    int factorial(int n) {
+        if (n == 0) {
+            return 1;
+        }
+        return n * this.factorial(n - 1);
+    }
+
+    int fib(int n) {
+        if (n <= 1) {
+            return 1;
+        }
+        return this.fib(n - 1) + this.fib(n - 2);
+    }
+}
+
+
+/* ----------------------------------------------------------------------
+ * Matrix: a dense matrix stored as a flat array (row-major).
+ * Supports multiply, trace (cached), and determinant.
+ * -------------------------------------------------------------------- */
+class Matrix extends Util {
+    int data[256];
+    int rows;
+    int cols;
+    int cachedTrace;
+    int hasTrace;
+
+    void initMatrix(int r, int c) {
+        int i;
+        this.rows = r;
+        this.cols = c;
+        this.hasTrace = 0;
+        i = 0;
+        while (i < r * c) {
+            this.data[i] = 0;
+            i = i + 1;
+        }
+    }
+
+    int get(int i, int j) {
+        return this.data[i * this.cols + j];
+    }
+
+    void set(int i, int j, int v) {
+        this.data[i * this.cols + j] = v;
+    }
+
+    Matrix multiply(Matrix other) {
+        Matrix result;
+        int i;
+        int j;
+        int k;
+        int s;
+        result = new Matrix();
+        result.initMatrix(this.rows, other.cols);
+        i = 0;
+        while (i < this.rows) {
+            j = 0;
+            while (j < other.cols) {
+                s = 0;
+                k = 0;
+                while (k < this.cols) {
+                    s = s + this.get(i, k) * other.get(k, j);
+                    k = k + 1;
+                }
+                result.set(i, j, s);
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    Matrix transposeNew() {
+        Matrix t;
+        int i;
+        int j;
+        t = new Matrix();
+        t.initMatrix(this.cols, this.rows);
+        i = 0;
+        while (i < this.rows) {
+            j = 0;
+            while (j < this.cols) {
+                t.set(j, i, this.get(i, j));
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+        return t;
+    }
+
+    int trace() {
+        int i;
+        int s;
+        if (this.hasTrace == 1) {
+            return this.cachedTrace;
+        }
+        s = 0;
+        i = 0;
+        while (i < this.rows) {
+            s = s + this.get(i, i);
+            i = i + 1;
+        }
+        this.cachedTrace = s;
+        this.hasTrace = 1;
+        return s;
+    }
+
+    Matrix subMatrix(int skipR, int skipC) {
+        Matrix m;
+        int i;
+        int j;
+        int ri;
+        int rj;
+        m = new Matrix();
+        m.initMatrix(this.rows - 1, this.cols - 1);
+        ri = 0;
+        i = 0;
+        while (i < this.rows) {
+            if (i != skipR) {
+                rj = 0;
+                j = 0;
+                while (j < this.cols) {
+                    if (j != skipC) {
+                        m.set(ri, rj, this.get(i, j));
+                        rj = rj + 1;
+                    }
+                    j = j + 1;
+                }
+                ri = ri + 1;
+            }
+            i = i + 1;
+        }
+        return m;
+    }
+
+    int determinant() {
+        int det;
+        int j;
+        int sign;
+        Matrix sub;
+        if (this.rows == 1) {
+            return this.get(0, 0);
+        }
+        det = 0;
+        j = 0;
+        sign = 1;
+        while (j < this.cols) {
+            sub = this.subMatrix(0, j);
+            det = det + sign * this.get(0, j) * sub.determinant();
+            sign = 0 - sign;
+            j = j + 1;
+        }
+        return det;
+    }
+}
+
+
+/* ----------------------------------------------------------------------
+ * TextBuffer: a "string" stored as an array of character codes.
+ * -------------------------------------------------------------------- */
+class TextBuffer extends Util {
+    int chars[128];
+    int len;
+
+    void initFrom(int src[], int n) {
+        int i;
+        i = 0;
+        while (i < n) {
+            this.chars[i] = src[i];
+            i = i + 1;
+        }
+        this.len = n;
+    }
+
+    int length() {
+        return this.len;
+    }
+
+    int charAt(int i) {
+        return this.chars[i];
+    }
+
+    int equals(TextBuffer other) {
+        int i;
+        i = 0;
+        while (i < this.len) {
+            if (this.chars[i] != other.charAt(i)) {
+                return 0;
+            }
+            i = i + 1;
+        }
+        return 1;
+    }
+
+    int compareTo(TextBuffer other) {
+        int i;
+        i = 0;
+        while (i < this.len) {
+            if (this.chars[i] != other.charAt(i)) {
+                return this.chars[i] - other.charAt(i);
+            }
+            i = i + 1;
+        }
+        return 0;
+    }
+
+    /* good spread of values for hashing */
+    int hashCode() {
+        int i;
+        int h;
+        h = 0;
+        i = 0;
+        while (i < this.len) {
+            h = h + this.chars[i];
+            i = i + 1;
+        }
+        return h;
+    }
+
+    int indexOf(TextBuffer pat) {
+        int i;
+        int j;
+        int ok;
+        i = 0;
+        while (i < this.len - pat.length()) {
+            j = 0;
+            ok = 1;
+            while (j < pat.length()) {
+                if (this.chars[i + j] != pat.charAt(j)) {
+                    ok = 0;
+                }
+                j = j + 1;
+            }
+            if (ok == 1) {
+                return i;
+            }
+            i = i + 1;
+        }
+        return 0 - 1;
+    }
+}
+
+
+/* ----------------------------------------------------------------------
+ * IntMap: an int->int hash map. Open addressing with linear probing.
+ * -------------------------------------------------------------------- */
+class IntMap extends Util {
+    int keys[101];
+    int vals[101];
+    int used[101];
+    int cap;
+
+    void initMap() {
+        int i;
+        this.cap = 100;
+        i = 0;
+        while (i < 101) {
+            this.used[i] = 0;
+            i = i + 1;
+        }
+    }
+
+    int hashOf(int k) {
+        return this.mod(k, this.cap);
+    }
+
+    void put(int k, int v) {
+        int idx;
+        idx = this.hashOf(k);
+        while (this.used[idx] == 1) {
+            if (this.keys[idx] == k) {
+                this.vals[idx] = v;
+                return;
+            }
+            idx = idx + 1;
+            if (idx == this.cap) {
+                idx = 0;
+            }
+        }
+        this.keys[idx] = k;
+        this.vals[idx] = v;
+        this.used[idx] = 1;
+    }
+
+    int get(int k) {
+        int idx;
+        idx = this.hashOf(k);
+        while (this.used[idx] == 1) {
+            if (this.keys[idx] == k) {
+                return this.vals[idx];
+            }
+            idx = idx + 1;
+            if (idx == this.cap) {
+                idx = 0;
+            }
+        }
+        return 0 - 1;
+    }
+
+    int containsKey(int k) {
+        if (this.get(k) == (0 - 1)) {
+            return 0;
+        }
+        return 1;
+    }
+}
+
+
+/* ----------------------------------------------------------------------
+ * Graph: a directed, weighted graph as an adjacency matrix.
+ * A weight of 0 means "no edge".
+ * -------------------------------------------------------------------- */
+class Graph extends Util {
+    int adj[256];
+    int n;
+
+    void initGraph(int size) {
+        int i;
+        this.n = size;
+        i = 0;
+        while (i < 256) {
+            this.adj[i] = 0;
+            i = i + 1;
+        }
+    }
+
+    void addEdge(int u, int v, int w) {
+        this.adj[u * this.n + v] = w;
+    }
+
+    int weight(int u, int v) {
+        return this.adj[u * this.n + v];
+    }
+
+    int hasPath(int u, int target) {
+        int v;
+        int r;
+        if (u == target) {
+            return 1;
+        }
+        v = 0;
+        while (v < this.n) {
+            if (this.weight(u, v) != 0) {
+                r = this.hasPath(v, target);
+                if (r == 1) {
+                    return 1;
+                }
+            }
+            v = v + 1;
+        }
+        return 0;
+    }
+
+    void allPairsShortest(int dist[]) {
+        int i;
+        int j;
+        int k;
+        int pass;
+        int through;
+        /* initialise distances from the adjacency matrix */
+        i = 0;
+        while (i < this.n) {
+            j = 0;
+            while (j < this.n) {
+                if (i == j) {
+                    dist[i * this.n + j] = 0;
+                } else {
+                    if (this.weight(i, j) != 0) {
+                        dist[i * this.n + j] = this.weight(i, j);
+                    } else {
+                        dist[i * this.n + j] = 99999;
+                    }
+                }
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+        /* run Floyd-Warshall n extra times, just to be certain it settles */
+        pass = 0;
+        while (pass < this.n) {
+            k = 0;
+            while (k < this.n) {
+                i = 0;
+                while (i < this.n) {
+                    j = 0;
+                    while (j < this.n) {
+                        through = dist[i * this.n + k] + dist[k * this.n + j];
+                        if (through < dist[i * this.n + j]) {
+                            dist[i * this.n + j] = through;
+                        }
+                        j = j + 1;
+                    }
+                    i = i + 1;
+                }
+                k = k + 1;
+            }
+            pass = pass + 1;
+        }
+    }
+}
+
+
+/* ----------------------------------------------------------------------
+ * Statistics: descriptive stats over an int array.
+ * -------------------------------------------------------------------- */
+class Statistics extends Util {
+
+    int mean(int a[], int n) {
+        int i;
+        int s;
+        s = 0;
+        i = 0;
+        while (i < n) {
+            s = s + a[i];
+            i = i + 1;
+        }
+        return s / n;
+    }
+
+    int variance(int a[], int n) {
+        int i;
+        int s;
+        int m;
+        int d;
+        s = 0;
+        i = 0;
+        while (i < n) {
+            /* recompute the mean so it is always up to date */
+            m = this.mean(a, n);
+            d = a[i] - m;
+            s = s + d * d;
+            i = i + 1;
+        }
+        return s / n;
+    }
+
+    int median(int a[], int n) {
+        int copy[64];
+        int i;
+        int j;
+        int t;
+        int mid;
+        i = 0;
+        while (i < n) {
+            copy[i] = a[i];
+            i = i + 1;
+        }
+        /* bubble sort the copy on every single call */
+        i = 0;
+        while (i < n) {
+            j = 0;
+            while (j < n - 1) {
+                if (copy[j] > copy[j + 1]) {
+                    t = copy[j];
+                    copy[j] = copy[j + 1];
+                    copy[j + 1] = t;
+                }
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+        mid = n / 2;
+        return copy[mid];
+    }
+
+    int maxVal(int a[], int n) {
+        int i;
+        int best;
+        best = 0;
+        i = 0;
+        while (i < n) {
+            if (a[i] > best) {
+                best = a[i];
+            }
+            i = i + 1;
+        }
+        return best;
+    }
+
+    int minVal(int a[], int n) {
+        int i;
+        int best;
+        best = a[0];
+        i = 0;
+        while (i < n) {
+            if (a[i] < best) {
+                best = a[i];
+            }
+            i = i + 1;
+        }
+        return best;
+    }
+
+    int mode(int a[], int n) {
+        int i;
+        int j;
+        int count;
+        int bestCount;
+        int bestVal;
+        bestCount = 0;
+        bestVal = a[0];
+        i = 0;
+        while (i < n) {
+            count = 0;
+            j = 0;
+            while (j < n) {
+                if (a[j] == a[i]) {
+                    count = count + 1;
+                }
+                j = j + 1;
+            }
+            if (count > bestCount) {
+                bestCount = count;
+                bestVal = a[i];
+            }
+            i = i + 1;
+        }
+        return bestVal;
+    }
+}
+
+
+/* ----------------------------------------------------------------------
+ * Main: wires everything together and prints results. Lots of magic
+ * numbers and copy-pasted blocks -- "it works, ship it".
+ * -------------------------------------------------------------------- */
+class Main extends Util {
+
+    void run() {
+        int data[16];
+        int sorted[16];
+        int dist[256];
+        int word1[2];
+        int word2[3];
+        int textArr[5];
+        int patArr[2];
+        int i;
+        int n;
+        IntList list;
+        IntStack stack;
+        IntQueue queue;
+        Sorter s;
+        NumberTheory nt;
+        Matrix m1;
+        Matrix m2;
+        Matrix prod;
+        TextBuffer bufA;
+        TextBuffer bufB;
+        TextBuffer text;
+        TextBuffer pat;
+        IntMap map;
+        Graph g;
+        Statistics stat;
+
+        /* ----- raw input data (magic numbers) ----- */
+        n = 8;
+        data[0] = 5;
+        data[1] = 3;
+        data[2] = 8;
+        data[3] = 1;
+        data[4] = 9;
+        data[5] = 2;
+        data[6] = 7;
+        data[7] = 4;
+
+        /* ===== IntList ===== */
+        list = new IntList();
+        list.initList();
+        i = 0;
+        while (i < n) {
+            list.add(data[i]);
+            i = i + 1;
+        }
+        print list.sum();
+        print list.maxValue();
+        list.bubbleSortSelf();
+        list.printAll();
+
+        /* ===== Stack ===== */
+        stack = new IntStack();
+        stack.initList();
+        stack.push(10);
+        stack.push(20);
+        stack.push(30);
+        print stack.pop();
+        print stack.pop();
+        print stack.peek();
+
+        /* ===== Queue ===== */
+        queue = new IntQueue();
+        queue.initList();
+        queue.enqueue(100);
+        queue.enqueue(200);
+        queue.enqueue(300);
+        print queue.dequeue();
+        print queue.dequeue();
+
+        /* ===== Sorting via polymorphism ===== */
+        i = 0;
+        while (i < n) {
+            sorted[i] = data[i];
+            i = i + 1;
+        }
+        s = new BubbleSorter();
+        s.sort(sorted, n);
+        i = 0;
+        while (i < n) {
+            print sorted[i];
+            i = i + 1;
+        }
+        /* re-sort the (now sorted) array three more ways */
+        s = new SelectionSorter();
+        s.sort(sorted, n);
+        s = new InsertionSorter();
+        s.sort(sorted, n);
+        s = new QuickSorter();
+        s.sort(sorted, n);
+        i = 0;
+        while (i < n) {
+            print sorted[i];
+            i = i + 1;
+        }
+
+        /* ===== Number theory (each call recomputed from scratch) ===== */
+        nt = new NumberTheory();
+        i = 1;
+        while (i <= 10) {
+            print nt.nthPrime(i);
+            i = i + 1;
+        }
+        print nt.gcd(48, 36);
+        print nt.lcm(4, 6);
+        print nt.factorial(6);
+        print nt.fib(10);
+        print nt.isPrime(1);
+
+        /* ===== Matrix ===== */
+        m1 = new Matrix();
+        m1.initMatrix(3, 3);
+        m1.set(0, 0, 1);
+        m1.set(0, 1, 2);
+        m1.set(0, 2, 3);
+        m1.set(1, 0, 4);
+        m1.set(1, 1, 5);
+        m1.set(1, 2, 6);
+        m1.set(2, 0, 7);
+        m1.set(2, 1, 8);
+        m1.set(2, 2, 10);
+        print m1.trace();
+        m1.set(0, 0, 100);
+        print m1.trace();
+
+        m2 = new Matrix();
+        m2.initMatrix(3, 3);
+        m2.set(0, 0, 1);
+        m2.set(1, 1, 1);
+        m2.set(2, 2, 1);
+        prod = m1.multiply(m2);
+        print prod.get(0, 0);
+        print m1.determinant();
+
+        /* ===== TextBuffer ===== */
+        word1[0] = 104;
+        word1[1] = 105;
+        bufA = new TextBuffer();
+        bufA.initFrom(word1, 2);
+
+        word2[0] = 104;
+        word2[1] = 105;
+        word2[2] = 116;
+        bufB = new TextBuffer();
+        bufB.initFrom(word2, 3);
+
+        print bufA.equals(bufB);
+
+        textArr[0] = 120;
+        textArr[1] = 120;
+        textArr[2] = 120;
+        textArr[3] = 97;
+        textArr[4] = 98;
+        text = new TextBuffer();
+        text.initFrom(textArr, 5);
+
+        patArr[0] = 97;
+        patArr[1] = 98;
+        pat = new TextBuffer();
+        pat.initFrom(patArr, 2);
+
+        print text.indexOf(pat);
+        print text.hashCode();
+
+        /* ===== IntMap ===== */
+        map = new IntMap();
+        map.initMap();
+        map.put(1, 10);
+        map.put(2, 0 - 1);
+        print map.get(1);
+        print map.containsKey(2);
+
+        /* ===== Graph ===== */
+        g = new Graph();
+        g.initGraph(4);
+        g.addEdge(0, 1, 5);
+        g.addEdge(1, 2, 3);
+        g.addEdge(2, 3, 2);
+        g.addEdge(0, 3, 20);
+        print g.hasPath(0, 3);
+        g.allPairsShortest(dist);
+        print dist[0 * 4 + 3];
+
+        /* ===== Statistics ===== */
+        stat = new Statistics();
+        print stat.mean(data, n);
+        print stat.variance(data, n);
+        print stat.median(data, n);
+        print stat.maxVal(data, n);
+        print stat.minVal(data, n);
+        print stat.mode(data, n);
+    }
+}
+
+
+int main(void) {
+    Main app;
+    app = new Main();
+    app.run();
+    return 0;
+}

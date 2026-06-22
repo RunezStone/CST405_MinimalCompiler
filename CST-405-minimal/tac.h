@@ -129,6 +129,12 @@ void      optimizeTAC(void);
 int       optimizeTACPass(VarValue* values, int* valueCount);
 void      eliminateDeadCode(void);
 
+/* Optimization metrics + performance report */
+extern int constFoldCount;   /* # constant-folded expressions */
+extern int deadCodeCount;    /* # dead instructions removed    */
+void      generatePerformanceReport(const char* srcFile, int mipsCount,
+                                    double unoptMs, double optMs);
+
 /* Output and saving */
 void      printTAC(void);
 void      printOptimizedTAC(void);

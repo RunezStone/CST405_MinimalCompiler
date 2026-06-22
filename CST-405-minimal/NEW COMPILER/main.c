@@ -1,0 +1,84 @@
+/* ============================================================================
+ * OOMini  —  Compiler driver
+ * Runs all phases: scan -> parse -> semantic -> TAC -> MIPS -> flaw check
+ *
+ *   Usage:  ./oomini <input.oom> [output.s] [-tokens] [-ast]
+ * ==========================================================================*/
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include "ast.h"
+#include "semantic.h"
+#include "tac.h"
+#include "codegen.h"
+#include "symtab.h"
+#include "flawcheck.h"
+
+extern int   yyparse(void);
+extern FILE* yyin;
+extern ASTNode* astRoot;
+extern int   syntaxErrors;
+extern int   displayTokens;
+
+int main(int argc, char** argv) {
+    if (argc < 2) {
+        fprintf(stderr, "Usage: %s <input.oom> [output.s] [-tokens] [-ast]\n", argv[0]);
+        return 1;
+    }
+
+    const char* inFile  = argv[1];
+    const char* outFile = "output.s";
+    int showAST = 0;
+
+    for (int i = 2; i < argc; i++) {
+        if      (strcmp(argv[i], "-tokens") == 0) displayTokens = 1;
+        else if (strcmp(argv[i], "-ast")    == 0) showAST = 1;
+        else outFile = argv[i];
+    }
+
+    yyin = fopen(inFile, "r");
+    if (!yyin) { perror("open input"); return 1; }
+
+    printf("=== Phase 1+2: Scanning & Parsing %s ===\n", inFile);
+    yyparse();
+    fclose(yyin);
+    if (syntaxErrors) {
+        fprintf(stderr, "Aborting: %d syntax error(s).\n", syntaxErrors);
+        return 1;
+    }
+    printf("Parse OK.\n");
+
+    if (showAST) {
+        printf("\n=== Abstract Syntax Tree ===\n");
+        for (ASTNode* it = astRoot; it; it = it->next) printAST(it, 0);
+    }
+
+    printf("\n=== Phase 3: Semantic Analysis ===\n");
+    if (analyze(astRoot) != 0) {
+        fprintf(stderr, "Aborting: semantic errors.\n");
+        return 1;
+    }
+    printClassRegistry();
+
+    /* TAC output filename: <input>.tac */
+    char tacFile[512];
+    snprintf(tacFile, sizeof(tacFile), "%s.tac", inFile);
+    printf("=== Phase 4: Three-Address Code ===\n");
+    generateTAC(astRoot, tacFile);
+
+    printf("\n=== Phase 5: MIPS Code Generation ===\n");
+    generateMIPS(astRoot, outFile);
+
+    printf("\n=== Phase 6: Logical Flaw Detection & Self-Correction ===\n");
+    int flaws = flawCheck(astRoot);
+    if (flaws > 0 && flawsWereFixed()) {
+        printf("\nRe-running code generation on corrected AST...\n");
+        printf("=== Phase 4 (revised): Three-Address Code ===\n");
+        generateTAC(astRoot, tacFile);
+        printf("\n=== Phase 5 (revised): MIPS Code Generation ===\n");
+        generateMIPS(astRoot, outFile);
+    }
+
+    printf("\nDone. Run it with:\n    spim -file %s\n", outFile);
+    return 0;
+}

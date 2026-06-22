@@ -1,0 +1,16 @@
+
+===== Compiler Performance Report =====
+Source file       : test_final.cm
+
+                     Unoptimized    Optimized    Reduction
+TAC instructions :          523          476         9%
+MIPS instructions:          977          977         0%
+Temporaries used :           85           84         1%
+Const folds      :            0           15
+Dead code removed:            0           47
+Compile time (ms):        39.37        40.30
+Sim time (ms)    :       (spim)       (spim)
+=======================================
+Note: MIPS is generated from the AST, so its count is identical
+      with and without optimization (the optimizer acts on the TAC).
+      Sim time is reported by SPIM:  time spim -file <output>.s

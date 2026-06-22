@@ -4,6 +4,8 @@
  */
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
+#include <string.h>
 #include "ast.h"
 #include "codegen.h"
 #include "tac.h"
@@ -28,6 +30,8 @@ int main(int argc, char* argv[]) {
         fprintf(stderr, "Error: Cannot open input file '%s'\n", argv[1]);
         return 1;
     }
+
+    clock_t _tStart = clock();   /* whole-compilation timer */
 
     printf("\n");
     printf("╔════════════════════════════════════════════════════════════╗\n");
@@ -108,7 +112,8 @@ int main(int argc, char* argv[]) {
     char tacFile[256];
     sprintf(tacFile, "%s.tac", argv[1]);
     saveTACToFile(tacFile);
-    printf("✓ TAC saved to: %s\n\n", tacFile);
+    saveTACToFile("tac_unopt.txt");   /* handout-named deliverable */
+    printf("✓ TAC saved to: %s (and tac_unopt.txt)\n\n", tacFile);
 
     /* ── PHASE 5: Optimization ── */
     printf("┌──────────────────────────────────────────────────────────┐\n");
@@ -120,14 +125,17 @@ int main(int argc, char* argv[]) {
     printf("│ • Dead code elimination                                  │\n");
     printf("└──────────────────────────────────────────────────────────┘\n");
 
+    clock_t _tOptStart = clock();
     optimizeTAC();
+    clock_t _tOptEnd = clock();
     printOptimizedTAC();
     allocateRegistersForTAC();
 
     char optTacFile[256];
     sprintf(optTacFile, "%s.opt.tac", argv[1]);
     saveOptimizedTACToFile(optTacFile);
-    printf("✓ Optimized TAC saved to: %s\n\n", optTacFile);
+    saveOptimizedTACToFile("tac_opt.txt");   /* handout-named deliverable */
+    printf("✓ Optimized TAC saved to: %s (and tac_opt.txt)\n\n", optTacFile);
 
     /* ── PHASE 6: MIPS Code Generation ── */
     printf("┌──────────────────────────────────────────────────────────┐\n");
@@ -142,6 +150,32 @@ int main(int argc, char* argv[]) {
 
     generateMIPS(root, argv[2]);
     printf("✓ MIPS assembly generated: %s\n\n", argv[2]);
+
+    /* ── Count real MIPS instructions in the generated .s ──
+     * Skip blank lines, comments (#), directives (.), and labels (ending ':') */
+    int mipsCount = 0;
+    FILE* sf = fopen(argv[2], "r");
+    if (sf) {
+        char line[512];
+        while (fgets(line, sizeof(line), sf)) {
+            char* p = line;
+            while (*p == ' ' || *p == '\t') p++;
+            if (*p == '\0' || *p == '\n' || *p == '#' || *p == '.') continue;
+            /* label line? (single token ending in ':') */
+            char* colon = strchr(p, ':');
+            char* space = strpbrk(p, " \t");
+            if (colon && (!space || colon < space)) continue;
+            mipsCount++;
+        }
+        fclose(sf);
+    }
+
+    /* ── PHASE 7: Performance Report ── */
+    double optMs   = ((double)(_tOptEnd  - _tOptStart) / CLOCKS_PER_SEC) * 1000.0;
+    double totalMs = ((double)(clock()   - _tStart)    / CLOCKS_PER_SEC) * 1000.0;
+    double unoptMs = totalMs - optMs;          /* time without the optimizer */
+    if (unoptMs < 0) unoptMs = 0;
+    generatePerformanceReport(argv[1], mipsCount, unoptMs, totalMs);
 
     printf("╔════════════════════════════════════════════════════════════╗\n");
     printf("║                  COMPILATION SUCCESSFUL!                   ║\n");

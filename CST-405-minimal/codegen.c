@@ -233,6 +233,36 @@ static void genExpr(ASTNode* node) {
             break;
         }
 
+        /* ── Array element read (rvalue):  arr[index]  ──
+         * Address = base_reg + base_offset + (index * 4).
+         * Local arrays live on $sp; globals on $s7.                  */
+        case NODE_ARRAY_INDEX: {
+            char* name    = node->data.array_index.name;
+            int   baseOff = getVarOffset(name);
+            const char* basereg = "$sp";
+            if (baseOff == -1) {
+                baseOff = getGlobalVarOffset(name);
+                basereg = "$s7";
+            }
+            if (baseOff == -1) {
+                fprintf(stderr,
+                    "CODEGEN ERROR: Array '%s' not declared\n", name);
+                exit(1);
+            }
+            /* Evaluate the index expression → value in $t{tempReg-1} */
+            genExpr(node->data.array_index.index);
+            int idxReg  = tempReg - 1;
+            int addrReg = getNextTemp();
+            fprintf(output, "    sll $t%d, $t%d, 2   # %s index * 4\n",
+                    idxReg, idxReg, name);
+            fprintf(output, "    add $t%d, $t%d, %s   # &%s[i]\n",
+                    addrReg, idxReg, basereg, name);
+            int resReg = getNextTemp();
+            fprintf(output, "    lw $t%d, %d($t%d)   # %s[i]\n",
+                    resReg, baseOff, addrReg, name);
+            break;
+        }
+
         /* ── Struct field access (rvalue):  base is field  ──
          * Address = base's stack offset + field's byte offset within
          * the struct (both positive, relative to $sp).               */
@@ -450,15 +480,21 @@ static void genFuncDef(ASTNode* node) {
     /* ── Return value ── */
     ASTNode* ec = node->data.func_def.end_clause;
     if (ec && ec->data.name != NULL) {
-        /* "end result;" — load the variable into $v0 */
-        int offset = getVarOffset(ec->data.name);
-        if (offset != -1) {
-            fprintf(output, "    lw   $v0, %d($sp)   # return %s\n",
-                    offset, ec->data.name);
+        if (ec->data.name[0] == '-' || (ec->data.name[0] >= '0' && ec->data.name[0] <= '9')) {
+            /* "end 0;" / "end 42;" — numeric literal into $v0 */
+            fprintf(output, "    li   $v0, %s   # return literal\n",
+                    ec->data.name);
         } else {
-            fprintf(stderr,
-                "CODEGEN ERROR: Return variable '%s' not found in '%s'\n",
-                ec->data.name, node->data.func_def.name);
+            /* "end result;" — load the variable into $v0 */
+            int offset = getVarOffset(ec->data.name);
+            if (offset != -1) {
+                fprintf(output, "    lw   $v0, %d($sp)   # return %s\n",
+                        offset, ec->data.name);
+            } else {
+                fprintf(stderr,
+                    "CODEGEN ERROR: Return variable '%s' not found in '%s'\n",
+                    ec->data.name, node->data.func_def.name);
+            }
         }
     }
     /* "end null;" — void, $v0 left undefined (caller won't use it) */
@@ -528,7 +564,60 @@ void genStmt(ASTNode* node) {
             break;
         }
 
+        case NODE_ARRAY_DECL: {
+            /* Local array declaration: int arr[N]; — reserve N*4 bytes
+             * on the current frame.  (Global arrays are pre-scanned into
+             * the $s7 frame by scanGlobals.)                           */
+            int offset = addArray(node->data.array_decl.name,
+                                  node->data.array_decl.size);
+            if (offset == -1) {
+                fprintf(stderr,
+                    "CODEGEN ERROR: Array '%s' already declared\n",
+                    node->data.array_decl.name);
+                exit(1);
+            }
+            fprintf(output, "    # Declare array %s[%d] at offset %d\n",
+                    node->data.array_decl.name,
+                    node->data.array_decl.size, offset);
+            break;
+        }
+
         case NODE_ASSIGN: {
+            /* ── Array element assignment:  arr[index] = expr;  ──
+             * Address = base_reg + base_offset + (index * 4).
+             * The value is evaluated first so the index computation
+             * cannot clobber it.                                      */
+            if (node->data.assign.arrayLHS) {
+                ASTNode* idxNode = node->data.assign.arrayLHS;
+                char*    name    = idxNode->data.array_index.name;
+                int      baseOff = getVarOffset(name);
+                const char* basereg = "$sp";
+                if (baseOff == -1) {
+                    baseOff = getGlobalVarOffset(name);
+                    basereg = "$s7";
+                }
+                if (baseOff == -1) {
+                    fprintf(stderr,
+                        "CODEGEN ERROR: Array '%s' not declared\n", name);
+                    exit(1);
+                }
+                /* 1. Evaluate the value → $t{valReg} */
+                genExpr(node->data.assign.value);
+                int valReg = tempReg - 1;
+                /* 2. Evaluate the index → $t{idxReg} */
+                genExpr(idxNode->data.array_index.index);
+                int idxReg  = tempReg - 1;
+                int addrReg = getNextTemp();
+                fprintf(output, "    sll $t%d, $t%d, 2   # %s index * 4\n",
+                        idxReg, idxReg, name);
+                fprintf(output, "    add $t%d, $t%d, %s   # &%s[i]\n",
+                        addrReg, idxReg, basereg, name);
+                fprintf(output, "    sw $t%d, %d($t%d)   # %s[i] = ...\n",
+                        valReg, baseOff, addrReg, name);
+                tempReg = 0;
+                break;
+            }
+
             /* ── Struct field assignment:  base is field = expr;  ── */
             if (node->data.assign.structLHS) {
                 ASTNode* access  = node->data.assign.structLHS;

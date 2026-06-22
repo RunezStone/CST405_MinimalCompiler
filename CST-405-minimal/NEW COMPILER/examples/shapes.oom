@@ -1,0 +1,43 @@
+// shapes.oom — inheritance + polymorphism demo
+// Expected output (one per line): 0 0 4 111 4 222
+
+class Animal {
+    int legs;
+
+    func void init(int l) {
+        self.legs = l;
+    }
+
+    func int sound() {        // base version
+        return 0;
+    }
+
+    func void describe() {    // inherited by subclasses unchanged
+        print(self.legs);
+        print(self.sound());  // dynamic dispatch -> subclass override
+    }
+}
+
+class Dog extends Animal {
+    func int sound() {        // override
+        return 111;
+    }
+}
+
+class Cat extends Animal {
+    func int sound() {        // override
+        return 222;
+    }
+}
+
+func void main() {
+    Animal a;
+    Dog d;
+    Cat c;
+    a = new Animal(0);
+    d = new Dog(4);
+    c = new Cat(4);
+    a.describe();
+    d.describe();
+    c.describe();
+}

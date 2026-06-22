@@ -1,0 +1,34 @@
+// counter.oom — objects + while loops + free functions
+// Expected output: 5  then 25
+
+class Counter {
+    int n;
+
+    func void init() {
+        self.n = 0;
+    }
+    func void inc() {
+        self.n = self.n + 1;
+    }
+    func int get() {
+        return self.n;
+    }
+}
+
+func int square(int x) {
+    return x * x;
+}
+
+func void main() {
+    Counter c;
+    int i;
+
+    c = new Counter();
+    i = 0;
+    while (i < 5) {
+        c.inc();
+        i = i + 1;
+    }
+    print(c.get());          // 5
+    print(square(c.get()));  // 25
+}

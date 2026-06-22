@@ -1,0 +1,42 @@
+// bank.oom — encapsulation, constructors, inherited methods, new fields
+// Expected output: 150  then 315
+
+class Account {
+    int balance;
+
+    func void init(int start) {
+        self.balance = start;
+    }
+    func void deposit(int amt) {
+        self.balance = self.balance + amt;
+    }
+    func int getBalance() {
+        return self.balance;
+    }
+}
+
+class Savings extends Account {
+    int rate;                       // new field, sits after inherited balance
+
+    func void init(int start) {     // override constructor
+        self.balance = start;
+        self.rate = 5;
+    }
+    func void addInterest() {       // new method
+        self.balance = self.balance + self.balance * self.rate / 100;
+    }
+}
+
+func void main() {
+    Account a;
+    Savings s;
+
+    a = new Account(100);
+    a.deposit(50);
+    print(a.getBalance());          // 150
+
+    s = new Savings(200);
+    s.deposit(100);                 // inherited deposit -> 300
+    s.addInterest();                // 300 + 300*5/100 = 315
+    print(s.getBalance());          // inherited getBalance -> 315
+}

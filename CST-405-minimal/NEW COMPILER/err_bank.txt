@@ -1,0 +1,5 @@
+Semantic error (line 35): use of undeclared variable 'a'
+Semantic error (line 36): use of undeclared variable 'a'
+Semantic error (line 39): use of undeclared variable 's'
+Semantic error (line 40): use of undeclared variable 's'
+Semantic error (line 41): use of undeclared variable 's'
